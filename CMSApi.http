@@ -1,6 +1,18 @@
 @CMSApi_HostAddress = http://localhost:5268
 
-GET {{CMSApi_HostAddress}}/weatherforecast/
-Accept: application/json
+### CMS Events POST - publish example
+POST {{CMSApi_HostAddress}}/cms/events
+Content-Type: application/json
 
-###
+[
+  {
+    "type": "publish",
+    "id": "entity1",
+    "payload": {
+      "name": "Test Entity",
+      "description": "This is a test"
+    },
+    "version": 1,
+    "timestamp": "2024-01-01T00:00:00Z"
+  }
+]
