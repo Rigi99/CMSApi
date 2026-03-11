@@ -2,43 +2,49 @@
 
 A .NET 10 API service that ingests CMS events via a webhook and exposes entity data via a REST API.
 
-## Tech stack
+## Tech Stack
 
-- .NET 8/9
+- .NET 8/9/10
 - EF Core
-- SQL Server / SQLite
+- SQL Server (MSSQL)
 - Minimal API / Controllers
 - Swagger UI for testing
 - Basic Authentication for webhook endpoint
 
-## Project structure
-CMSApi
-├── Controllers
-│ ├── CmsEventsController.cs
-│ └── EntitiesController.cs
-├── Domain
-│ ├── CmsEntity.cs
-│ └── CmsEntityVersion.cs
-├── Infrastructure
-│ └── ApplicationDbContext.cs
-├── Services
-│ ├── ICmsEventProcessor.cs
-│ └── CmsEventProcessor.cs
-├── Dtos
-│ └── CmsEventDto.cs
-├── Program.cs
-├── CMSApi.csproj
-├── CMSApi.http
-└── README.md
+## Project Structure
 
+CMSApi  
+├── **Controllers**  
+│   ├── `CmsEventsController.cs` – handles webhook events (publish, update, unPublish, delete)  
+│   └── `EntitiesController.cs` – exposes entity data via REST API  
+├── **Domain**  
+│   ├── `CmsEntity.cs` – main entity model  
+│   └── `CmsEntityVersion.cs` – versioned data for entities  
+├── **Dtos**  
+│   └── `CmsEventDto.cs` – incoming CMS event schema  
+├── **Infrastructure**  
+│   └── `ApplicationDbContext.cs` – EF Core DbContext and configuration  
+├── **Repository**  
+│   ├── `ICmsEntityRepository.cs` – repository interface  
+│   └── `CmsEntityRepository.cs` – repository implementation  
+├── **Services**  
+│   ├── `ICmsEventProcessor.cs` – service interface for processing events  
+│   └── `CmsEventProcessor.cs` – event processing implementation  
+├── **Migrations** – EF Core migrations  
+├── `Program.cs` – application entry point  
+├── `CMSApi.csproj`  
+├── `CMSApi.http` – REST API & webhook test cases  
+└── `README.md`
 
-## Getting started
+---
 
-## Prerequisites
+## Getting Started
 
-- .NET 8 or 9 SDK
-- Git
-- SQL Server or SQLite
+### Prerequisites
+
+- .NET 8 or 9 SDK  
+- Git  
+- SQL Server (MSSQL)  
 
 ### Run locally
 
@@ -50,11 +56,11 @@ dotnet run
 
 ## Git workflow
 
-main → stable, production-ready
+- main → stable, production-ready
 
-dev → development
+- dev → development
 
-staging → pre-release testing
+- staging → pre-release testing
 
 ### Webhook API
 
@@ -77,96 +83,87 @@ JSON example:
   }
 ]
 
-payload can be null for delete events
+- payload can be null for delete events
 
-Event versioning is managed via CmsEntity and CmsEntityVersion models
+- Event versioning is managed via CmsEntity and CmsEntityVersion models
 
 ## REST API
 
-EntitiesController – lists entities for consumers
+- EntitiesController – lists entities for consumers
 
-Admin users can see all entities, including disabled ones
+- Admin users can see all entities, including disabled ones
 
-Regular users cannot modify data via the REST API
+- Regular users cannot modify data via the REST API
 
-Admins can override entity status (disable) locally, without affecting the CMS
+- Admins can override entity status (disable) locally, without affecting the CMS
 
 ## Flow
 
-CMS webhook event arrives at /cms/events
+1. CMS webhook event arrives at /cms/events
 
-CmsEventProcessor processes events:
+2. CmsEventProcessor processes events:
 
-publish → saves a new version
+- publish → saves a new version
 
-update → updates existing entity
+- update → updates existing entity
 
-unPublish → disables entity but keeps it in database
+- unPublish → disables entity but keeps it in database
 
-delete → permanently deletes the entity
+- delete → permanently deletes the entity
 
-REST API exposes entities to users and admins
+3. REST API exposes entities to users and admins
 
 ## Testing
 
-The .http file allows testing publish, update, delete events easily
+- The .http file allows testing publish, update, delete events easily
 
-Swagger UI is available for quick manual testing
+- Swagger UI is available for quick manual testing
 
 ## CMS Webhook Authentication
 
-The /cms/events endpoint is protected with Basic Authentication.
+- The /cms/events endpoint is protected with Basic Authentication.
 
-CMS uses a dedicated username and password (different from user REST API credentials).
+- CMS uses a dedicated username and password (different from user REST API credentials).
 
-Example credentials format (do not hardcode in production):
+- Example credentials format (do not hardcode in production):
 
-Username: random string (10-20 characters)
-Password: random GUID
+    - Username: random string (10-20 characters)
+    - Password: random GUID
 
 ## Data Privacy
 
-All CMS data should be treated as confidential / restricted.
+- All CMS data should be treated as confidential / restricted.
 
-Do not expose any entity publicly.
+- Do not expose any entity publicly.
 
 ## Event Handling & Versioning
 
-The webhook can send batch events (multiple events in a single request).
+- The webhook can send batch events (multiple events in a single request).
 
-Event types: publish, update, delete, unPublish.
+- Event types: publish, update, delete, unPublish.
 
-Versioning rules:
+- Versioning rules:
 
-Each update creates a new version (X → X+1).
-
-If an entity is unpublished and there was no previously published version, the latest version may be unavailable — handle this edge case.
-
-Event processing is asynchronous, which allows the system to:
-
-Efficiently handle large batches of incoming events without blocking the webhook response.
-
-Scale better under high load, processing multiple events concurrently.
-
-Keep the API responsive for clients while the database operations complete in the background.
+    - Each update creates a new version (X → X+1).
+    - If an entity is unpublished and there was no previously published version, latest version may be unavailable — handle this edge case
 
 ## Application Layer Rules
 
-Validate and sanitize all incoming data.
+- Validate and sanitize all incoming data.
 
-Delete events → hard delete in the database.
+- Delete events → hard delete in the database.
 
-Unpublish events → keep the entity in the database but mark it disabled.
+- Unpublish events → keep the entity in the database but mark it disabled.
 
 ## Performance
 
-Using asynchronous mechanisms for event processing improves throughput and latency.
+- Using asynchronous mechanisms for event processing improves throughput and latency.
 
-EF Core context is configured with read-only / writer separation to optimize read queries.
+- EF Core context is configured with read-only / writer separation to optimize read queries.
 
 
 ## Observability & Logging
 
-Log all processed events, including failures.
+- Log all processed events, including failures.
 
-Include timestamps and event metadata in logs for debugging and auditing.
+- Include timestamps and event metadata in logs for debugging and auditing.

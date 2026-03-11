@@ -10,6 +10,7 @@ public class CmsEventsController(ICmsEventProcessor processor) : ControllerBase
 {
     private readonly ICmsEventProcessor _processor = processor;
 
+    // POST: /cms/events
     [HttpPost]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

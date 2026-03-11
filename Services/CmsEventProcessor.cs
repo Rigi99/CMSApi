@@ -1,69 +1,105 @@
 using CMSApi.Domain;
 using CMSApi.Dtos;
-using CMSApi.Infrastructure;
-using Microsoft.EntityFrameworkCore;
-using System.Text.Json;
+using CMSApi.Repository;
 
-namespace CMSApi.Services;
-
-public class CmsEventProcessor(ApplicationDbContext db) : ICmsEventProcessor
+namespace CMSApi.Services
 {
-    private readonly ApplicationDbContext _db = db;
-
-    public async Task ProcessEventsAsync(IEnumerable<CmsEventDto> events)
+    public class CmsEventProcessor(ICmsEntityRepository repo) : ICmsEventProcessor
     {
-        foreach (var evt in events)
+        private readonly ICmsEntityRepository _repo = repo;
+
+        public async Task ProcessEventsAsync(IEnumerable<CmsEventDto> events)
         {
-            var entity = _db.CmsEntities.Local.FirstOrDefault(e => e.Id == evt.Id)
-                         ?? await _db.CmsEntities
-                                     .Include(e => e.Versions)
-                                     .FirstOrDefaultAsync(e => e.Id == evt.Id);
+            await using var transaction = await _repo.BeginTransactionAsync();
 
-            switch (evt.Type.ToLower())
+            try
             {
-                case "publish":
-                case "update":
-                    if (entity == null)
-                    {
-                        entity = new CmsEntity
-                        {
-                            Id = evt.Id,
-                            Name = evt.Payload?.Name ?? evt.Id
-                        };
-                        _db.CmsEntities.Add(entity);
-                    }
-                    else
-                    {
-                        entity.Name = evt.Payload?.Name ?? entity.Name;
-                        entity.IsDisabled = false;
-                    }
+                var eventList = events
+                    .OrderBy(e => e.Timestamp)
+                    .ThenBy(e => e.Version)
+                    .ToList();
 
-                    var version = new CmsEntityVersion
-                    {
-                        CmsEntity = entity,
-                        Version = evt.Version,
-                        Timestamp = evt.Timestamp,
-                        Payload = evt.Payload == null ? "{}" : JsonSerializer.Serialize(evt.Payload)
-                    };
-                    _db.CmsEntityVersions.Add(version);
-                    break;
+                var ids = eventList.Select(e => e.Id).Distinct().ToList();
+                var entities = await _repo.GetByIdsWithVersionsAsync(ids);
 
-                case "unpublish":
-                    if (entity != null)
+                foreach (var evt in eventList)
+                {
+                    entities.TryGetValue(evt.Id, out var entity);
+
+                    switch (evt.Type.ToLowerInvariant())
                     {
-                        entity.IsDisabled = true;
-                        if (evt.Payload != null)
-                            entity.Name = evt.Payload.Name ?? entity.Name;
+                        case "publish":
+                        case "update":
+                            if (entity == null)
+                            {
+                                entity = new CmsEntity
+                                {
+                                    Id = evt.Id,
+                                    LatestVersion = evt.Version
+                                };
+
+                                await _repo.AddEntityAsync(entity);
+                                entities[evt.Id] = entity;
+                            }
+                            else
+                            {
+                                entity.IsDisabled = false;
+                                entity.LatestVersion = Math.Max(entity.LatestVersion, evt.Version);
+                            }
+
+                            if (!entity.Versions.Any(v => v.Version == evt.Version))
+                            {
+                                var version = new CmsEntityVersion
+                                {
+                                    CmsEntityId = evt.Id,
+                                    Version = evt.Version,
+                                    Timestamp = evt.Timestamp,
+                                    Payload = evt.Payload?.GetRawText()
+                                };
+
+                                await _repo.AddVersionAsync(version);
+                                entity.Versions.Add(version);
+                            }
+
+                            break;
+                        case "unpublish":
+                            if (entity != null)
+                            {
+                                if (!entity.Versions.Any(v => v.Version == evt.Version))
+                                {
+                                    var version = new CmsEntityVersion
+                                    {
+                                        CmsEntityId = evt.Id,
+                                        Version = evt.Version,
+                                        Timestamp = evt.Timestamp,
+                                        Payload = evt.Payload?.GetRawText()
+                                    };
+                                    await _repo.AddVersionAsync(version);
+                                    entity.Versions.Add(version);
+                                }
+
+                                entity.IsDisabled = true;
+                            }
+                            break;
+
+                        case "delete":
+                            if (entity != null)
+                            {
+                                await _repo.RemoveEntityAsync(entity);
+                                entities.Remove(evt.Id);
+                            }
+                            break;
                     }
-                    break;
+                }
 
-                case "delete":
-                    if (entity != null)
-                        _db.CmsEntities.Remove(entity);
-                    break;
+                await _repo.SaveChangesAsync();
+                await transaction.CommitAsync();
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
             }
         }
-
-        await _db.SaveChangesAsync();
     }
 }

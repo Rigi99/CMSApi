@@ -1,7 +1,6 @@
-using CMSApi.Dtos;
 using CMSApi.Infrastructure;
+using CMSApi.Repository;
 using CMSApi.Services;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json.Serialization;
 
@@ -18,10 +17,15 @@ builder.Services.AddControllers()
 
 builder.Services.AddSwaggerGen();
 
+// Configure EF Core DbContext
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"))
 );
 
+// Register repository
+builder.Services.AddScoped<ICmsEntityRepository, CmsEntityRepository>();
+
+// Register service (depends on repository now)
 builder.Services.AddScoped<ICmsEventProcessor, CmsEventProcessor>();
 
 var app = builder.Build();

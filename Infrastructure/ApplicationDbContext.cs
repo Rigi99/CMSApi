@@ -3,13 +3,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CMSApi.Infrastructure;
 
-public class ApplicationDbContext : DbContext
+public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : DbContext(options)
 {
-    public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
-        : base(options)
-    {
-    }
-
     public DbSet<CmsEntity> CmsEntities => Set<CmsEntity>();
     public DbSet<CmsEntityVersion> CmsEntityVersions => Set<CmsEntityVersion>();
 
@@ -20,10 +15,10 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<CmsEntity>(entity =>
         {
             entity.HasKey(e => e.Id);
-            entity.Property(e => e.Name).IsRequired();
             entity.HasMany(e => e.Versions)
                   .WithOne(v => v.CmsEntity)
-                  .HasForeignKey(v => v.CmsEntityId);
+                  .HasForeignKey(v => v.CmsEntityId)
+                  .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<CmsEntityVersion>(entity =>
@@ -32,6 +27,8 @@ public class ApplicationDbContext : DbContext
             entity.Property(v => v.Version).IsRequired();
             entity.Property(v => v.Timestamp).IsRequired();
             entity.Property(v => v.Payload).HasColumnType("nvarchar(max)");
+            entity.HasIndex(v => new { v.CmsEntityId, v.Version })
+                  .IsUnique();
         });
     }
 }

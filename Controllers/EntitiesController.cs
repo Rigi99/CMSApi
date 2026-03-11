@@ -38,7 +38,6 @@ public class EntitiesController(ApplicationDbContext db) : ControllerBase
     }
 
     // PATCH: api/entities/{id}/disable
-    // Admin override (requirement: admin can disable entities without affecting CMS)
     [HttpPatch("{id}/disable")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
