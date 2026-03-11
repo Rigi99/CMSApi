@@ -6,9 +6,10 @@ namespace CMSApi.Controllers;
 
 [ApiController]
 [Route("cms/events")]
-public class CmsEventsController(ICmsEventProcessor processor) : ControllerBase
+public class CmsEventsController(ICmsEventProcessor processor, ILogger<CmsEventsController> logger) : ControllerBase
 {
     private readonly ICmsEventProcessor _processor = processor;
+    private readonly ILogger<CmsEventsController> _logger = logger;
 
     // POST: /cms/events
     [HttpPost]
@@ -18,16 +19,24 @@ public class CmsEventsController(ICmsEventProcessor processor) : ControllerBase
     {
         if (events == null || !events.Any())
         {
+            _logger.LogWarning("PostEvents called with empty or null events list");
             return BadRequest(new { message = "No events received" });
         }
 
-        Console.WriteLine($"Received {events.Count()} events");
+        if (_logger.IsEnabled(LogLevel.Information))
+            _logger.LogInformation("Received {EventCount} CMS events", events.Count());
 
-        await _processor.ProcessEventsAsync(events);
-
-        return Ok(new
+        try
         {
-            message = $"Processed {events.Count()} events"
-        });
+            await _processor.ProcessEventsAsync(events);
+            if (_logger.IsEnabled(LogLevel.Information))
+                _logger.LogInformation("Successfully processed {EventCount} CMS events", events.Count());
+            return Ok(new { message = $"Processed {events.Count()} events" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error processing {EventCount} CMS events", events.Count());
+            return StatusCode(500, "Internal server error");
+        }
     }
 }
