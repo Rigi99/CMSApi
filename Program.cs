@@ -26,9 +26,11 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 
 // Register repository
 builder.Services.AddScoped<ICmsEntityRepository, CmsEntityRepository>();
+builder.Services.AddScoped<ICmsEntityVersionRepository, CmsEntityVersionRepository>();
 
 // Register service (depends on repository now)
-builder.Services.AddScoped<ICmsEventProcessor, CmsEventProcessor>();
+builder.Services.AddScoped<ICmsEventService, CmsEventService>();
+builder.Services.AddScoped<IEntitiesService, EntitiesService>();
 
 
 // Basic Authentication

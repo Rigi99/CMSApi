@@ -1,92 +1,52 @@
-using CMSApi.Infrastructure;
+using CMSApi.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace CMSApi.Controllers;
 
 [ApiController]
 [Route("api/entities")]
-[Authorize(AuthenticationSchemes = "BasicAuthentication")] 
+[Authorize(AuthenticationSchemes = "BasicAuthentication")]
 
-public class EntitiesController(ApplicationDbContext db, ILogger<EntitiesController> logger, IConfiguration configuration) : ControllerBase
+public class EntitiesController(IEntitiesService entitiesService,
+                                ILogger<EntitiesController> logger,
+                                IConfiguration configuration) : ControllerBase
 {
-    private readonly ApplicationDbContext _db = db;
+    private readonly IEntitiesService _entitiesService = entitiesService;
     private readonly ILogger<EntitiesController> _logger = logger;
     private readonly IConfiguration _configuration = configuration;
 
-    // GET: api/entities
     [HttpGet]
-    [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> GetEntities()
     {
-        if (_logger.IsEnabled(LogLevel.Information))
-            _logger.LogInformation("Fetching enabled CMS entities at {Time}", DateTime.UtcNow);
-
-        var entities = await _db.CmsEntities
-            .AsNoTracking()
-            .Include(e => e.Versions)
-            .Where(e => !e.IsDisabled)
-            .ToListAsync();
-
-        if (_logger.IsEnabled(LogLevel.Information))
-            _logger.LogInformation("Returned {Count} enabled CMS entities", entities.Count);
-
+        var entities = await _entitiesService.GetEnabledEntitiesAsync();
         return Ok(entities);
     }
 
-    // GET: api/entities/admin
     [HttpGet("admin")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAllEntities()
     {
         if (User.Identity?.Name != _configuration["BasicAuth:AdminUsername"])
-        {
-            _logger.LogWarning("Unauthorized user {User} tried to access admin endpoint", User.Identity?.Name);
             return Forbid();
-        }
 
-        if (_logger.IsEnabled(LogLevel.Information))
-            _logger.LogInformation("Fetching all CMS entities (admin) at {Time}", DateTime.UtcNow);
-
-        var entities = await _db.CmsEntities
-            .AsNoTracking()
-            .Include(e => e.Versions)
-            .ToListAsync();
-        if (_logger.IsEnabled(LogLevel.Information))
-            _logger.LogInformation("Returned {Count} total CMS entities", entities.Count);
-
+        var entities = await _entitiesService.GetAllEntitiesAsync();
         return Ok(entities);
     }
 
-    // PATCH: api/entities/{id}/disable
     [HttpPatch("{id}/disable")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DisableEntity(string id)
     {
         if (User.Identity?.Name != _configuration["BasicAuth:AdminUsername"])
-        {
-            _logger.LogWarning("Unauthorized user {User} tried to access admin endpoint", User.Identity?.Name);
             return Forbid();
-        }
-        if (_logger.IsEnabled(LogLevel.Information))
-            _logger.LogInformation("DisableEntity called for ID {EntityId}", id);
 
-        var entity = await _db.CmsEntities.FirstOrDefaultAsync(e => e.Id == id);
-
-        if (entity == null)
+        try
         {
-            _logger.LogWarning("Entity with ID {EntityId} not found", id);
+            await _entitiesService.DisableEntityAsync(id);
+            return Ok(new { message = $"Entity {id} disabled" });
+        }
+        catch (KeyNotFoundException)
+        {
             return NotFound(new { message = "Entity not found" });
         }
-
-        entity.IsDisabled = true;
-        await _db.SaveChangesAsync();
-
-        if (_logger.IsEnabled(LogLevel.Information))
-            _logger.LogInformation("Entity {EntityId} disabled successfully", id);
-
-        return Ok(new { message = $"Entity {id} disabled" });
     }
 }

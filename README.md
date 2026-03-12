@@ -26,10 +26,14 @@ CMSApi
 │ └── ApplicationDbContext.cs – EF Core DbContext and configuration
 ├── Repository
 │ ├── ICmsEntityRepository.cs – repository interface
-│ └── CmsEntityRepository.cs – repository implementation
+| |── ICmsEntityVersionRepository.cs – repository interface
+│ |── CmsEntityRepository.cs – repository implementation
+│ └── CmsEntityVersionRepository.cs – repository implementation
 ├── Services
-│ ├── ICmsEventProcessor.cs – service interface for processing events
-│ └── CmsEventProcessor.cs – event processing implementation
+│ ├── ICmsEventService.cs – service interface
+│ ├── ICmsEventVersionService.cs – service interface
+│ └── CmsEventService.cs – event processing implementation
+│ └── CmsEventVersionService.cs – event processing implementation
 ├── Authentication
 │ ├── BasicAuthOptions.cs – configuration options for Basic Authentication
 │ └── BasicAuthenticationHandler.cs – handles Basic Authentication logic
