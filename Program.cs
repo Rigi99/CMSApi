@@ -8,30 +8,29 @@ using CMSApi.Authentication;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services
+// -------------------- Add services --------------------
+
+// Controllers + JSON serialization options
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
-        // Prevent JSON serialization cycles (Versions -> CmsEntity -> Versions ...)
+        // Prevent JSON reference cycles (Versions -> CmsEntity -> Versions ...)
         options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.Preserve;
-        options.JsonSerializerOptions.MaxDepth = 64;
+        options.JsonSerializerOptions.MaxDepth = 32; // optimized for performance
     });
 
-builder.Services.AddSwaggerGen();
-
-// Configure EF Core DbContext
+// EF Core DbContext
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"))
 );
 
-// Register repository
+// Repository DI
 builder.Services.AddScoped<ICmsEntityRepository, CmsEntityRepository>();
 builder.Services.AddScoped<ICmsEntityVersionRepository, CmsEntityVersionRepository>();
 
-// Register service (depends on repository now)
+// Service DI
 builder.Services.AddScoped<ICmsEventService, CmsEventService>();
 builder.Services.AddScoped<IEntityService, EntityService>();
-
 
 // Basic Authentication
 builder.Services.AddAuthentication("BasicAuthentication")
@@ -41,13 +40,12 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
+// -------------------- Middleware --------------------
 app.UseHttpsRedirection();
-
-// Auth middleware
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Register controllers
+// Map controllers
 app.MapControllers();
 
 app.Run();
