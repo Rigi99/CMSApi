@@ -1,10 +1,10 @@
-using CMSApi.Infrastructure;
-using CMSApi.Repository;
 using CMSApi.Services;
-using CMSApi.Authentication; 
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication;
+using CMSApi.Services.Authentication;
+using CMSApi.Data.Repository;
+using CMSApi.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 

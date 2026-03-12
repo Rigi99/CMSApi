@@ -1,9 +1,9 @@
-﻿using CMSApi.Domain;
-using CMSApi.Infrastructure;
+﻿using CMSApi.Data.Repository;
+using CMSApi.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 
-namespace CMSApi.Repository
+namespace CMSApi.Data.Repository
 {
     public class CmsEntityRepository(ApplicationDbContext db, ILogger<CmsEntityRepository> logger) : ICmsEntityRepository
     {
@@ -45,7 +45,8 @@ namespace CMSApi.Repository
             try
             {
                 await _db.CmsEntities.AddAsync(entity);
-                _logger.LogInformation("Entity {EntityId} added to DbContext", entity.Id);
+                if (_logger.IsEnabled(LogLevel.Information))
+                    _logger.LogInformation("Entity {EntityId} added to DbContext", entity.Id);
             }
             catch (Exception ex)
             {
@@ -59,7 +60,8 @@ namespace CMSApi.Repository
             try
             {
                 _db.CmsEntities.Remove(entity);
-                _logger.LogInformation("Entity {EntityId} removed from DbContext", entity.Id);
+                if (_logger.IsEnabled(LogLevel.Information))
+                    _logger.LogInformation("Entity {EntityId} removed from DbContext", entity.Id);
                 return Task.CompletedTask;
             }
             catch (Exception ex)

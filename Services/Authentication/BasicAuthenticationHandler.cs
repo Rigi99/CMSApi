@@ -6,19 +6,15 @@ using System.Security.Claims;
 using System.Text;
 using System.Text.Encodings.Web;
 
-public class BasicAuthenticationHandler : AuthenticationHandler<AuthenticationSchemeOptions>
-{
-    private readonly IConfiguration _configuration;
+namespace CMSApi.Services.Authentication;
 
-    public BasicAuthenticationHandler(
-        IOptionsMonitor<AuthenticationSchemeOptions> options,
-        ILoggerFactory logger,
-        UrlEncoder encoder,
-        IConfiguration configuration)
-        : base(options, logger, encoder)
-    {
-        _configuration = configuration;
-    }
+public class BasicAuthenticationHandler(
+    IOptionsMonitor<AuthenticationSchemeOptions> options,
+    ILoggerFactory logger,
+    UrlEncoder encoder,
+    IConfiguration configuration) : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
+{
+    private readonly IConfiguration _configuration = configuration;
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {

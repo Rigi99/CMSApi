@@ -1,6 +1,6 @@
+using CMSApi.Data.Repository;
 using CMSApi.Domain;
 using CMSApi.Dtos;
-using CMSApi.Repository;
 using System.Text.RegularExpressions;
 
 namespace CMSApi.Services

@@ -1,7 +1,7 @@
 using CMSApi.Domain;
 using Microsoft.EntityFrameworkCore;
 
-namespace CMSApi.Infrastructure;
+namespace CMSApi.Data;
 
 public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : DbContext(options)
 {

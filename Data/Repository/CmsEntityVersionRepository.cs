@@ -1,9 +1,8 @@
 ﻿using CMSApi.Domain;
-using CMSApi.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
-namespace CMSApi.Repository
+namespace CMSApi.Data.Repository
 {
     public class CmsEntityVersionRepository(ApplicationDbContext db, ILogger<CmsEntityVersionRepository> logger) : ICmsEntityVersionRepository
     {

@@ -1,5 +1,5 @@
 ﻿using CMSApi.Domain;
-using CMSApi.Repository;
+using CMSApi.Data.Repository;
 
 namespace CMSApi.Services
 {
@@ -31,7 +31,7 @@ namespace CMSApi.Services
 
         public async Task DisableEntityAsync(string id)
         {
-            var entities = await _entityRepo.GetByIdsAsync(new[] { id });
+            var entities = await _entityRepo.GetByIdsAsync([id]);
 
             if (!entities.TryGetValue(id, out var entity))
             {

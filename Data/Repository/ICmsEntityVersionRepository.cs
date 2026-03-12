@@ -1,6 +1,6 @@
 ﻿using CMSApi.Domain;
 
-namespace CMSApi.Repository
+namespace CMSApi.Data.Repository
 {
     public interface ICmsEntityVersionRepository
     {

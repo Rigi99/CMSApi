@@ -15,32 +15,41 @@ A .NET 10 API service that ingests CMS events via a webhook and exposes entity d
 
 CMSApi
 ├── Controllers
-│ ├── CmsEventController.cs – handles webhook events (publish, update, unPublish, delete)
-│ └── EntityController.cs – exposes entity data via REST API
+│   ├── CmsEventController.cs – handles webhook events (publish, update, unPublish, delete)
+│   └── EntityController.cs – exposes entity data via REST API
+│
+├── Data
+│   ├── Repository
+│   │   ├── ICmsEntityRepository.cs – repository interface for entities
+│   │   ├── ICmsEntityVersionRepository.cs – repository interface for entity versions
+│   │   ├── CmsEntityRepository.cs – repository implementation
+│   │   └── CmsEntityVersionRepository.cs – repository implementation
+│   │
+│   └── ApplicationDbContext.cs – EF Core DbContext and database configuration
+│
 ├── Domain
-│ ├── CmsEntity.cs – main entity model
-│ └── CmsEntityVersion.cs – versioned data for entities
+│   ├── CmsEntity.cs – main entity model
+│   └── CmsEntityVersion.cs – versioned data for entities
+│
 ├── Dtos
-│ └── CmsEventDto.cs – incoming CMS event schema
-├── Infrastructure
-│ └── ApplicationDbContext.cs – EF Core DbContext and configuration
-├── Repository
-│ ├── ICmsEntityRepository.cs – repository interface
-| |── ICmsEntityVersionRepository.cs – repository interface
-│ |── CmsEntityRepository.cs – repository implementation
-│ └── CmsEntityVersionRepository.cs – repository implementation
-├── Services
-│ ├── ICmsEventService.cs – service interface
-│ ├── ICmsEventVersionService.cs – service interface
-│ └── CmsEventService.cs – event processing implementation
-│ └── CmsEventVersionService.cs – event processing implementation
-├── Authentication
-│ ├── BasicAuthOptions.cs – configuration options for Basic Authentication
-│ └── BasicAuthenticationHandler.cs – handles Basic Authentication logic
+│   └── CmsEventDto.cs – incoming CMS event schema (webhook payload)
+│
 ├── Migrations – EF Core migrations
-├── Program.cs – application entry point
-├── CMSApi.csproj
+│
+├── Services
+│   ├── Authentication
+│   │
+│   ├── ICmsEventService.cs – service interface for CMS event processing
+│   ├── IEntityService.cs – service interface for entity operations
+│   ├── CmsEventService.cs – event processing implementation
+│   └── EntityService.cs – entity-related business logic
+│
+├── Properties
+│
+├── appsettings.json – application configuration
+├── Program.cs – application entry point and service registration
 ├── CMSApi.http – REST API & webhook test cases
+├── .gitignore
 └── README.md
 
 ---
@@ -49,7 +58,7 @@ CMSApi
 
 ### Prerequisites
 
-- .NET 8 or 9 SDK  
+- .NET 9 or 10 SDK  
 - Git  
 - SQL Server (MSSQL)  
 
