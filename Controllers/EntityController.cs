@@ -8,12 +8,12 @@ namespace CMSApi.Controllers;
 [Route("api/entities")]
 [Authorize(AuthenticationSchemes = "BasicAuthentication")]
 
-public class EntitiesController(IEntitiesService entitiesService,
-                                ILogger<EntitiesController> logger,
+public class EntityController(IEntitiesService entitiesService,
+                                ILogger<EntityController> logger,
                                 IConfiguration configuration) : ControllerBase
 {
     private readonly IEntitiesService _entitiesService = entitiesService;
-    private readonly ILogger<EntitiesController> _logger = logger;
+    private readonly ILogger<EntityController> _logger = logger;
     private readonly IConfiguration _configuration = configuration;
 
     [HttpGet]
