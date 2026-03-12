@@ -1,20 +1,24 @@
 using CMSApi.Domain;
 using CMSApi.Dtos;
 using CMSApi.Repository;
+using System.Text.RegularExpressions;
 
 namespace CMSApi.Services
 {
-    public class CmsEventProcessor(ICmsEntityRepository repo, ILogger<CmsEventProcessor> logger) : ICmsEventProcessor
+    public partial class CmsEventService(ICmsEntityRepository entityRepo,
+                            ICmsEntityVersionRepository entityVersionRepo,
+                            ILogger<CmsEventService> logger) : ICmsEventService
     {
-        private readonly ICmsEntityRepository _repo = repo;
-        private readonly ILogger<CmsEventProcessor> _logger = logger;
+        private readonly ICmsEntityRepository _entityRepo = entityRepo;
+        private readonly ICmsEntityVersionRepository _entityVersionRepo = entityVersionRepo;
+        private readonly ILogger<CmsEventService> _logger = logger;
 
         public async Task ProcessEventsAsync(IEnumerable<CmsEventDto> events)
         {
             if (_logger.IsEnabled(LogLevel.Information))
                 _logger.LogInformation("Starting to process {EventCount} CMS events", events.Count());
 
-            await using var transaction = await _repo.BeginTransactionAsync();
+            await using var transaction = await _entityRepo.BeginTransactionAsync();
 
             try
             {
@@ -22,16 +26,14 @@ namespace CMSApi.Services
                     .OrderBy(e => e.Timestamp)
                     .ThenBy(e => e.Version)
                     .ToList();
-                if (_logger.IsEnabled(LogLevel.Information))
-                    _logger.LogInformation("Ordered {EventCount} events by timestamp and version", eventList.Count);
 
                 var ids = eventList.Select(e => e.Id).Distinct().ToList();
-                var entities = await _repo.GetByIdsWithVersionsAsync(ids);
-
-                _logger.LogInformation("Fetched {EntityCount} existing entities from repository", entities.Count);
-
+                var entities = await _entityRepo.GetByIdsAsync(ids);
                 foreach (var evt in eventList)
                 {
+                    if (!IsValidEvent(evt, out var error))
+                        throw new InvalidOperationException($"Invalid event {evt.Id}: {error}");
+
                     entities.TryGetValue(evt.Id, out var entity);
 
                     switch (evt.Type.ToLowerInvariant())
@@ -40,23 +42,14 @@ namespace CMSApi.Services
                         case "update":
                             if (entity == null)
                             {
-                                entity = new CmsEntity
-                                {
-                                    Id = evt.Id,
-                                    LatestVersion = evt.Version
-                                };
-
-                                await _repo.AddEntityAsync(entity);
+                                entity = new CmsEntity { Id = evt.Id, LatestVersion = evt.Version };
+                                await _entityRepo.AddAsync(entity);
                                 entities[evt.Id] = entity;
-                                if (_logger.IsEnabled(LogLevel.Information))
-                                    _logger.LogInformation("Created new entity {EntityId} with version {Version}", evt.Id, evt.Version);
                             }
                             else
                             {
                                 entity.IsDisabled = false;
                                 entity.LatestVersion = Math.Max(entity.LatestVersion, evt.Version);
-                                if (_logger.IsEnabled(LogLevel.Information))
-                                    _logger.LogInformation("Updated entity {EntityId} to version {Version}", evt.Id, evt.Version);
                             }
 
                             if (!entity.Versions.Any(v => v.Version == evt.Version))
@@ -68,15 +61,11 @@ namespace CMSApi.Services
                                     Timestamp = evt.Timestamp,
                                     Payload = evt.Payload?.GetRawText()
                                 };
-
-                                await _repo.AddVersionAsync(version);
+                                await _entityVersionRepo.AddAsync(version);
                                 entity.Versions.Add(version);
-
-                                if (_logger.IsEnabled(LogLevel.Information))
-                                    _logger.LogInformation("Added version {Version} to entity {EntityId}", evt.Version, evt.Id);
                             }
-
                             break;
+
                         case "unpublish":
                             if (entity != null)
                             {
@@ -89,50 +78,82 @@ namespace CMSApi.Services
                                         Timestamp = evt.Timestamp,
                                         Payload = evt.Payload?.GetRawText()
                                     };
-                                    await _repo.AddVersionAsync(version);
+                                    await _entityVersionRepo.AddAsync(version);
                                     entity.Versions.Add(version);
-
-                                    if (_logger.IsEnabled(LogLevel.Information))
-                                        _logger.LogInformation("Added version {Version} for unpublish to entity {EntityId}", evt.Version, evt.Id);
                                 }
-
                                 entity.IsDisabled = true;
-                                if (_logger.IsEnabled(LogLevel.Information))
-                                    _logger.LogInformation("Entity {EntityId} marked as disabled (unpublish)", evt.Id);
                             }
                             break;
 
                         case "delete":
                             if (entity != null)
                             {
-                                await _repo.RemoveEntityAsync(entity);
+                                await _entityRepo.RemoveAsync(entity);
                                 entities.Remove(evt.Id);
-
-                                if (_logger.IsEnabled(LogLevel.Information))
-                                    _logger.LogInformation("Entity {EntityId} deleted", evt.Id);
                             }
                             break;
+
                         default:
                             _logger.LogWarning("Unknown event type '{EventType}' for entity {EntityId}", evt.Type, evt.Id);
                             break;
                     }
                 }
 
-
-                await _repo.SaveChangesAsync();
+                await _entityRepo.SaveChangesAsync();
                 await transaction.CommitAsync();
-
-                if (_logger.IsEnabled(LogLevel.Information))
-                    _logger.LogInformation("Successfully processed {EventCount} CMS events", events.Count());
             }
-            catch (Exception ex)
+            catch
             {
-
                 await transaction.RollbackAsync();
-                _logger.LogError(ex, "Error processing CMS events, transaction rolled back");
                 throw;
-
             }
         }
+
+        private static bool IsValidEvent(CmsEventDto evt, out string error)
+        {
+            error = string.Empty;
+            var allowedTypes = new[] { "publish", "update", "unpublish", "delete" };
+
+            if (string.IsNullOrWhiteSpace(evt.Id))
+            {
+                error = "Id cannot be empty";
+                return false;
+            }
+
+            if (!IdFormatRegex().IsMatch(evt.Id))
+            {
+                error = "Id format invalid";
+                return false;
+            }
+
+            if (!allowedTypes.Contains(evt.Type?.ToLowerInvariant()))
+            {
+                error = $"Invalid type {evt.Type}";
+                return false;
+            }
+
+            if (evt.Version < 1 && !string.Equals(evt.Type, "delete", StringComparison.OrdinalIgnoreCase))
+            {
+                error = $"Invalid version {evt.Version}";
+                return false;
+            }
+
+            if (evt.Timestamp == default || evt.Timestamp > DateTime.UtcNow.AddMinutes(5))
+            {
+                error = "Invalid timestamp";
+                return false;
+            }
+
+            if (evt.Payload.HasValue && evt.Payload.Value.GetRawText().Length > 1_000_000)
+            {
+                error = "Payload too large";
+                return false;
+            }
+
+            return true;
+        }
+
+        [GeneratedRegex(@"^[a-zA-Z0-9\-]{1,50}$")]
+        private static partial Regex IdFormatRegex();
     }
 }

@@ -13,28 +13,35 @@ A .NET 10 API service that ingests CMS events via a webhook and exposes entity d
 
 ## Project Structure
 
-CMSApi  
-├── **Controllers**  
-│   ├── `CmsEventsController.cs` – handles webhook events (publish, update, unPublish, delete)  
-│   └── `EntitiesController.cs` – exposes entity data via REST API  
-├── **Domain**  
-│   ├── `CmsEntity.cs` – main entity model  
-│   └── `CmsEntityVersion.cs` – versioned data for entities  
-├── **Dtos**  
-│   └── `CmsEventDto.cs` – incoming CMS event schema  
-├── **Infrastructure**  
-│   └── `ApplicationDbContext.cs` – EF Core DbContext and configuration  
-├── **Repository**  
-│   ├── `ICmsEntityRepository.cs` – repository interface  
-│   └── `CmsEntityRepository.cs` – repository implementation  
-├── **Services**  
-│   ├── `ICmsEventProcessor.cs` – service interface for processing events  
-│   └── `CmsEventProcessor.cs` – event processing implementation  
-├── **Migrations** – EF Core migrations  
-├── `Program.cs` – application entry point  
-├── `CMSApi.csproj`  
-├── `CMSApi.http` – REST API & webhook test cases  
-└── `README.md`
+CMSApi
+├── Controllers
+│ ├── CmsEventsController.cs – handles webhook events (publish, update, unPublish, delete)
+│ └── EntitiesController.cs – exposes entity data via REST API
+├── Domain
+│ ├── CmsEntity.cs – main entity model
+│ └── CmsEntityVersion.cs – versioned data for entities
+├── Dtos
+│ └── CmsEventDto.cs – incoming CMS event schema
+├── Infrastructure
+│ └── ApplicationDbContext.cs – EF Core DbContext and configuration
+├── Repository
+│ ├── ICmsEntityRepository.cs – repository interface
+| |── ICmsEntityVersionRepository.cs – repository interface
+│ |── CmsEntityRepository.cs – repository implementation
+│ └── CmsEntityVersionRepository.cs – repository implementation
+├── Services
+│ ├── ICmsEventService.cs – service interface
+│ ├── ICmsEventVersionService.cs – service interface
+│ └── CmsEventService.cs – event processing implementation
+│ └── CmsEventVersionService.cs – event processing implementation
+├── Authentication
+│ ├── BasicAuthOptions.cs – configuration options for Basic Authentication
+│ └── BasicAuthenticationHandler.cs – handles Basic Authentication logic
+├── Migrations – EF Core migrations
+├── Program.cs – application entry point
+├── CMSApi.csproj
+├── CMSApi.http – REST API & webhook test cases
+└── README.md
 
 ---
 
@@ -70,6 +77,7 @@ Handles CMS events: publish, update, delete, unPublish
 
 JSON example:
 
+```
 [
   {
     "type": "publish",
@@ -82,6 +90,7 @@ JSON example:
     "timestamp": "2024-01-01T00:00:00Z"
   }
 ]
+```
 
 - payload can be null for delete events
 
@@ -96,6 +105,23 @@ JSON example:
 - Regular users cannot modify data via the REST API
 
 - Admins can override entity status (disable) locally, without affecting the CMS
+
+## Authentication
+
+- The /cms/events webhook endpoint is protected with Basic Authentication.
+- Implemented via the Authentication/BasicAuthenticationHandler.cs and BasicAuthOptions.cs.
+- Credentials are stored securely in appsettings.json:
+```
+"BasicAuth": {
+  "BasicUsername": "basic_user",
+  "BasicPassword": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "AdminUsername": "admin_user",
+  "AdminPassword": "e02b2c3d-479f-47ac-10b5-8cc4372a5670"
+}
+```
+- CMS user → BasicUsername / BasicPassword
+- Admin user → AdminUsername / AdminPassword
+
 
 ## Flow
 
@@ -119,16 +145,6 @@ JSON example:
 
 - Swagger UI is available for quick manual testing
 
-## CMS Webhook Authentication
-
-- The /cms/events endpoint is protected with Basic Authentication.
-
-- CMS uses a dedicated username and password (different from user REST API credentials).
-
-- Example credentials format (do not hardcode in production):
-
-    - Username: random string (10-20 characters)
-    - Password: random GUID
 
 ## Data Privacy
 
