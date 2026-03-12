@@ -1,8 +1,10 @@
 using CMSApi.Infrastructure;
 using CMSApi.Repository;
 using CMSApi.Services;
+using CMSApi.Authentication; 
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Authentication;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -28,20 +30,20 @@ builder.Services.AddScoped<ICmsEntityRepository, CmsEntityRepository>();
 // Register service (depends on repository now)
 builder.Services.AddScoped<ICmsEventProcessor, CmsEventProcessor>();
 
+
+// Basic Authentication
+builder.Services.AddAuthentication("BasicAuthentication")
+    .AddScheme<AuthenticationSchemeOptions, BasicAuthenticationHandler>("BasicAuthentication", null);
+
+builder.Services.AddAuthorization();
+
 var app = builder.Build();
 
-// Configure middleware
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "CMS API V1");
-        c.RoutePrefix = string.Empty; // Swagger UI at root
-    });
-}
-
 app.UseHttpsRedirection();
+
+// Auth middleware
+app.UseAuthentication();
+app.UseAuthorization();
 
 // Register controllers
 app.MapControllers();

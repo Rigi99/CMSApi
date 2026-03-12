@@ -1,15 +1,19 @@
 using CMSApi.Dtos;
 using CMSApi.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CMSApi.Controllers;
 
 [ApiController]
 [Route("cms/events")]
-public class CmsEventsController(ICmsEventProcessor processor, ILogger<CmsEventsController> logger) : ControllerBase
+[Authorize(AuthenticationSchemes = "BasicAuthentication")]
+
+public class CmsEventsController(ICmsEventProcessor processor, ILogger<CmsEventsController> logger, IConfiguration configuration) : ControllerBase
 {
     private readonly ICmsEventProcessor _processor = processor;
     private readonly ILogger<CmsEventsController> _logger = logger;
+    private readonly IConfiguration _configuration = configuration;
 
     // POST: /cms/events
     [HttpPost]
@@ -17,6 +21,12 @@ public class CmsEventsController(ICmsEventProcessor processor, ILogger<CmsEvents
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> PostEvents([FromBody] IEnumerable<CmsEventDto> events)
     {
+        if (User.Identity?.Name != _configuration["BasicAuth:BasicUsername"])
+        {
+            _logger.LogWarning("Unauthorized user {User} tried to post CMS events", User.Identity?.Name);
+            return Forbid();
+        }
+
         if (events == null || !events.Any())
         {
             _logger.LogWarning("PostEvents called with empty or null events list");

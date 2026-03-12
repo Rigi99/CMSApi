@@ -1,4 +1,5 @@
 using CMSApi.Infrastructure;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -6,17 +7,21 @@ namespace CMSApi.Controllers;
 
 [ApiController]
 [Route("api/entities")]
-public class EntitiesController(ApplicationDbContext db, ILogger<EntitiesController> logger) : ControllerBase
+[Authorize(AuthenticationSchemes = "BasicAuthentication")] 
+
+public class EntitiesController(ApplicationDbContext db, ILogger<EntitiesController> logger, IConfiguration configuration) : ControllerBase
 {
     private readonly ApplicationDbContext _db = db;
     private readonly ILogger<EntitiesController> _logger = logger;
+    private readonly IConfiguration _configuration = configuration;
 
     // GET: api/entities
     [HttpGet]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> GetEntities()
     {
-        _logger.LogInformation("Fetching enabled CMS entities at {Time}", DateTime.UtcNow);
+        if (_logger.IsEnabled(LogLevel.Information))
+            _logger.LogInformation("Fetching enabled CMS entities at {Time}", DateTime.UtcNow);
 
         var entities = await _db.CmsEntities
             .AsNoTracking()
@@ -24,7 +29,9 @@ public class EntitiesController(ApplicationDbContext db, ILogger<EntitiesControl
             .Where(e => !e.IsDisabled)
             .ToListAsync();
 
-        _logger.LogInformation("Returned {Count} enabled CMS entities", entities.Count);
+        if (_logger.IsEnabled(LogLevel.Information))
+            _logger.LogInformation("Returned {Count} enabled CMS entities", entities.Count);
+
         return Ok(entities);
     }
 
@@ -33,14 +40,22 @@ public class EntitiesController(ApplicationDbContext db, ILogger<EntitiesControl
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAllEntities()
     {
-        _logger.LogInformation("Fetching all CMS entities (admin) at {Time}", DateTime.UtcNow);
+        if (User.Identity?.Name != _configuration["BasicAuth:AdminUsername"])
+        {
+            _logger.LogWarning("Unauthorized user {User} tried to access admin endpoint", User.Identity?.Name);
+            return Forbid();
+        }
+
+        if (_logger.IsEnabled(LogLevel.Information))
+            _logger.LogInformation("Fetching all CMS entities (admin) at {Time}", DateTime.UtcNow);
 
         var entities = await _db.CmsEntities
             .AsNoTracking()
             .Include(e => e.Versions)
             .ToListAsync();
+        if (_logger.IsEnabled(LogLevel.Information))
+            _logger.LogInformation("Returned {Count} total CMS entities", entities.Count);
 
-        _logger.LogInformation("Returned {Count} total CMS entities", entities.Count);
         return Ok(entities);
     }
 
@@ -50,7 +65,13 @@ public class EntitiesController(ApplicationDbContext db, ILogger<EntitiesControl
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DisableEntity(string id)
     {
-        _logger.LogInformation("DisableEntity called for ID {EntityId}", id);
+        if (User.Identity?.Name != _configuration["BasicAuth:AdminUsername"])
+        {
+            _logger.LogWarning("Unauthorized user {User} tried to access admin endpoint", User.Identity?.Name);
+            return Forbid();
+        }
+        if (_logger.IsEnabled(LogLevel.Information))
+            _logger.LogInformation("DisableEntity called for ID {EntityId}", id);
 
         var entity = await _db.CmsEntities.FirstOrDefaultAsync(e => e.Id == id);
 
@@ -63,7 +84,9 @@ public class EntitiesController(ApplicationDbContext db, ILogger<EntitiesControl
         entity.IsDisabled = true;
         await _db.SaveChangesAsync();
 
-        _logger.LogInformation("Entity {EntityId} disabled successfully", id);
+        if (_logger.IsEnabled(LogLevel.Information))
+            _logger.LogInformation("Entity {EntityId} disabled successfully", id);
+
         return Ok(new { message = $"Entity {id} disabled" });
     }
 }
