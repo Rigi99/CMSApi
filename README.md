@@ -15,7 +15,7 @@ A .NET 10 API service that ingests CMS events via a webhook and exposes entity d
 
 CMSApi
 ├── Controllers
-│   ├── CmsEventController.cs – handles webhook events (publish, update, unPublish, delete)
+│   ├── CmsEntityController.cs – handles webhook events (publish, update, unPublish, delete)
 │   └── EntityController.cs – exposes entity data via REST API
 │
 ├── Data
@@ -32,12 +32,12 @@ CMSApi
 │   └── CmsEntityVersion.cs – versioned data for entities
 │
 ├── Dtos
-│   └── CmsEventDto.cs – incoming CMS webhook event schema
+│   └── CmsEntityDto.cs – incoming CMS webhook event schema
 │
 ├── Services
-│   ├── ICmsEventService.cs – service interface for CMS event processing
+│   ├── ICmsEntityService.cs – service interface for CMS event processing
 │   ├── IEntityService.cs – service interface for entity operations
-│   ├── CmsEventService.cs – event processing implementation
+│   ├── CmsEntityService.cs – event processing implementation
 │   └── EntityService.cs – entity-related business logic
 │
 ├── Authentication

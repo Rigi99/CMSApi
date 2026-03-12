@@ -2,7 +2,7 @@ using CMSApi.Dtos;
 
 namespace CMSApi.Services;
 
-public interface ICmsEventService
+public interface ICmsEntityService
 {
     Task ProcessEventsAsync(IEnumerable<CmsEntityDto> events);
 }

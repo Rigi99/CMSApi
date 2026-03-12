@@ -5,14 +5,14 @@ using System.Text.RegularExpressions;
 
 namespace CMSApi.Services;
 
-public partial class CmsEventService(
+public partial class CmsEntityService(
     ICmsEntityRepository entityRepo,
     ICmsEntityVersionRepository entityVersionRepo,
-    ILogger<CmsEventService> logger) : ICmsEventService
+    ILogger<CmsEntityService> logger) : ICmsEntityService
 {
     private readonly ICmsEntityRepository _entityRepo = entityRepo;
     private readonly ICmsEntityVersionRepository _entityVersionRepo = entityVersionRepo;
-    private readonly ILogger<CmsEventService> _logger = logger;
+    private readonly ILogger<CmsEntityService> _logger = logger;
 
     private static readonly HashSet<string> AllowedTypes =
         new(StringComparer.OrdinalIgnoreCase)

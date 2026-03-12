@@ -29,7 +29,7 @@ builder.Services.AddScoped<ICmsEntityRepository, CmsEntityRepository>();
 builder.Services.AddScoped<ICmsEntityVersionRepository, CmsEntityVersionRepository>();
 
 // Service DI
-builder.Services.AddScoped<ICmsEventService, CmsEventService>();
+builder.Services.AddScoped<ICmsEntityService, CmsEntityService>();
 builder.Services.AddScoped<IEntityService, EntityService>();
 
 // Basic Authentication

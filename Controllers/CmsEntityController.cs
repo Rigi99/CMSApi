@@ -10,13 +10,13 @@ namespace CMSApi.Controllers;
 [ApiController]
 [Route("cms/events")]
 [Authorize(AuthenticationSchemes = "BasicAuthentication")]
-public class CmsEventController(
-    ICmsEventService cmsEventService,
-    ILogger<CmsEventController> logger,
+public class CmsEntityController(
+    ICmsEntityService cmsEventService,
+    ILogger<CmsEntityController> logger,
     IOptions<BasicAuthOptions> authOptions) : ControllerBase
 {
-    private readonly ICmsEventService _cmsEventService = cmsEventService;
-    private readonly ILogger<CmsEventController> _logger = logger;
+    private readonly ICmsEntityService _cmsEventService = cmsEventService;
+    private readonly ILogger<CmsEntityController> _logger = logger;
     private readonly BasicAuthOptions _authOptions = authOptions.Value;
 
     // POST: /cms/events
