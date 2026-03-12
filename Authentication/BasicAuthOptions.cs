@@ -1,4 +1,4 @@
-﻿namespace CMSApi.Services.Authentication;
+﻿namespace CMSApi.Authentication;
 
 public class BasicAuthOptions
 {

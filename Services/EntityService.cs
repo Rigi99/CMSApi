@@ -1,49 +1,43 @@
 ﻿using CMSApi.Domain;
 using CMSApi.Data.Repository;
 
-namespace CMSApi.Services
+namespace CMSApi.Services;
+
+public class EntityService(ICmsEntityRepository entityRepo, ILogger<EntityService> logger) : IEntityService
 {
-    public class EntityService(ICmsEntityRepository entityRepo, ILogger<EntityService> logger) : IEntityService
+    private readonly ICmsEntityRepository _entityRepo = entityRepo;
+    private readonly ILogger<EntityService> _logger = logger;
+
+    public async Task<List<CmsEntity>> GetEnabledEntitiesAsync()
     {
-        private readonly ICmsEntityRepository _entityRepo = entityRepo;
-        private readonly ILogger<EntityService> _logger = logger;
+        var allEntities = await _entityRepo.GetAllAsync();
+        var enabled = allEntities.Values.Where(e => !e.IsDisabled).ToList();
 
-        public async Task<List<CmsEntity>> GetEnabledEntitiesAsync()
+        _logger.LogInformation("Fetched {Count} enabled entities", enabled.Count);
+        return enabled;
+    }
+
+    public async Task<List<CmsEntity>> GetAllEntitiesAsync()
+    {
+        var allEntities = await _entityRepo.GetAllAsync();
+        var entityList = allEntities.Values.ToList();
+
+        _logger.LogInformation("Fetched {Count} total entities", entityList.Count);
+        return entityList;
+    }
+
+    public async Task DisableEntityAsync(string id)
+    {
+        var entities = await _entityRepo.GetByIdsAsync(new[] { id });
+        if (!entities.TryGetValue(id, out var entity) || entity == null)
         {
-            var allEntities = await _entityRepo.GetAllAsync();
-            var enabled = allEntities.Values.Where(e => !e.IsDisabled).ToList();
-
-            if (_logger.IsEnabled(LogLevel.Information))
-                _logger.LogInformation("Fetched {Count} enabled entities", enabled.Count);
-
-            return enabled;
+            _logger.LogWarning("Entity {EntityId} not found", id);
+            throw new KeyNotFoundException($"Entity {id} not found");
         }
 
-        public async Task<List<CmsEntity>> GetAllEntitiesAsync()
-        {
-            var allEntities = await _entityRepo.GetAllAsync();
+        entity.IsDisabled = true;
+        await _entityRepo.SaveChangesAsync();
 
-            if (_logger.IsEnabled(LogLevel.Information))
-                _logger.LogInformation("Fetched {Count} total entities", allEntities.Count);
-
-            return [.. allEntities.Values];
-        }
-
-        public async Task DisableEntityAsync(string id)
-        {
-            var entities = await _entityRepo.GetByIdsAsync([id]);
-
-            if (!entities.TryGetValue(id, out var entity))
-            {
-                _logger.LogWarning("Entity {EntityId} not found", id);
-                throw new KeyNotFoundException($"Entity {id} not found");
-            }
-
-            entity.IsDisabled = true;
-            await _entityRepo.SaveChangesAsync();
-
-            if (_logger.IsEnabled(LogLevel.Information))
-                _logger.LogInformation("Entity {EntityId} disabled", id);
-        }
+        _logger.LogInformation("Entity {EntityId} disabled", id);
     }
 }

@@ -2,9 +2,9 @@ using CMSApi.Services;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication;
-using CMSApi.Services.Authentication;
 using CMSApi.Data.Repository;
 using CMSApi.Data;
+using CMSApi.Authentication;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -35,7 +35,7 @@ builder.Services.AddScoped<IEntityService, EntityService>();
 
 // Basic Authentication
 builder.Services.AddAuthentication("BasicAuthentication")
-    .AddScheme<AuthenticationSchemeOptions, BasicAuthenticationHandler>("BasicAuthentication", null);
+    .AddScheme<AuthenticationSchemeOptions, BasicAuthenticationService>("BasicAuthentication", null);
 
 builder.Services.AddAuthorization();
 

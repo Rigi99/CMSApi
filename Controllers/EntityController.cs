@@ -1,20 +1,22 @@
+using CMSApi.Authentication;
 using CMSApi.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace CMSApi.Controllers;
 
 [ApiController]
 [Route("api/entities")]
 [Authorize(AuthenticationSchemes = "BasicAuthentication")]
-
-public class EntityController(IEntityService entitiesService,
-                                ILogger<EntityController> logger,
-                                IConfiguration configuration) : ControllerBase
+public class EntityController(
+    IEntityService entitiesService,
+    ILogger<EntityController> logger,
+    IOptions<BasicAuthOptions> authOptions) : ControllerBase
 {
     private readonly IEntityService _entitiesService = entitiesService;
     private readonly ILogger<EntityController> _logger = logger;
-    private readonly IConfiguration _configuration = configuration;
+    private readonly BasicAuthOptions _authOptions = authOptions.Value;
 
     [HttpGet]
     public async Task<IActionResult> GetEntities()
@@ -26,7 +28,7 @@ public class EntityController(IEntityService entitiesService,
     [HttpGet("admin")]
     public async Task<IActionResult> GetAllEntities()
     {
-        if (User.Identity?.Name != _configuration["BasicAuth:AdminUsername"])
+        if (!IsAdmin())
             return Forbid();
 
         var entities = await _entitiesService.GetAllEntitiesAsync();
@@ -36,7 +38,7 @@ public class EntityController(IEntityService entitiesService,
     [HttpPatch("{id}/disable")]
     public async Task<IActionResult> DisableEntity(string id)
     {
-        if (User.Identity?.Name != _configuration["BasicAuth:AdminUsername"])
+        if (!IsAdmin())
             return Forbid();
 
         try
@@ -49,4 +51,6 @@ public class EntityController(IEntityService entitiesService,
             return NotFound(new { message = "Entity not found" });
         }
     }
+
+    private bool IsAdmin() => User.Identity?.Name == _authOptions.Username;
 }

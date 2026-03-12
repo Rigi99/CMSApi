@@ -2,7 +2,7 @@ using System.Text.Json;
 
 namespace CMSApi.Dtos;
 
-public class CmsEventDto
+public class CmsEntityDto
 {
     public string Type { get; set; } = string.Empty; // publish, update, delete, unPublish
     public string Id { get; set; } = string.Empty;

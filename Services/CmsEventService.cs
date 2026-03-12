@@ -3,157 +3,158 @@ using CMSApi.Domain;
 using CMSApi.Dtos;
 using System.Text.RegularExpressions;
 
-namespace CMSApi.Services
+namespace CMSApi.Services;
+
+public partial class CmsEventService(
+    ICmsEntityRepository entityRepo,
+    ICmsEntityVersionRepository entityVersionRepo,
+    ILogger<CmsEventService> logger) : ICmsEventService
 {
-    public partial class CmsEventService(ICmsEntityRepository entityRepo,
-                            ICmsEntityVersionRepository entityVersionRepo,
-                            ILogger<CmsEventService> logger) : ICmsEventService
+    private readonly ICmsEntityRepository _entityRepo = entityRepo;
+    private readonly ICmsEntityVersionRepository _entityVersionRepo = entityVersionRepo;
+    private readonly ILogger<CmsEventService> _logger = logger;
+
+    private static readonly HashSet<string> AllowedTypes =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            "publish", "update", "unpublish", "delete"
+        };
+
+    public async Task ProcessEventsAsync(IEnumerable<CmsEntityDto> events)
     {
-        private readonly ICmsEntityRepository _entityRepo = entityRepo;
-        private readonly ICmsEntityVersionRepository _entityVersionRepo = entityVersionRepo;
-        private readonly ILogger<CmsEventService> _logger = logger;
+        var eventList = events
+            .OrderBy(e => e.Timestamp)
+            .ThenBy(e => e.Version)
+            .ToList();
 
-        public async Task ProcessEventsAsync(IEnumerable<CmsEventDto> events)
+        _logger.LogInformation("Starting to process {EventCount} CMS events", eventList.Count);
+
+        await using var transaction = await _entityRepo.BeginTransactionAsync();
+
+        try
         {
-            if (_logger.IsEnabled(LogLevel.Information))
-                _logger.LogInformation("Starting to process {EventCount} CMS events", events.Count());
+            var ids = eventList.Select(e => e.Id).Distinct().ToList();
+            var entities = await _entityRepo.GetByIdsAsync(ids);
 
-            await using var transaction = await _entityRepo.BeginTransactionAsync();
-
-            try
+            foreach (var evt in eventList)
             {
-                var eventList = events
-                    .OrderBy(e => e.Timestamp)
-                    .ThenBy(e => e.Version)
-                    .ToList();
+                if (!IsValidEvent(evt, out var error))
+                    throw new InvalidOperationException($"Invalid event {evt.Id}: {error}");
 
-                var ids = eventList.Select(e => e.Id).Distinct().ToList();
-                var entities = await _entityRepo.GetByIdsAsync(ids);
-                foreach (var evt in eventList)
+                var entity = entities.GetValueOrDefault(evt.Id);
+
+                switch (evt.Type?.ToLowerInvariant())
                 {
-                    if (!IsValidEvent(evt, out var error))
-                        throw new InvalidOperationException($"Invalid event {evt.Id}: {error}");
+                    case "publish":
+                    case "update":
+                        entity = await HandlePublishOrUpdate(evt, entity, entities);
+                        break;
 
-                    entities.TryGetValue(evt.Id, out var entity);
+                    case "unpublish":
+                        await HandleUnpublish(evt, entity);
+                        break;
 
-                    switch (evt.Type.ToLowerInvariant())
-                    {
-                        case "publish":
-                        case "update":
-                            if (entity == null)
-                            {
-                                entity = new CmsEntity { Id = evt.Id, LatestVersion = evt.Version };
-                                await _entityRepo.AddAsync(entity);
-                                entities[evt.Id] = entity;
-                            }
-                            else
-                            {
-                                entity.IsDisabled = false;
-                                entity.LatestVersion = Math.Max(entity.LatestVersion, evt.Version);
-                            }
+                    case "delete":
+                        await HandleDelete(evt, entity, entities);
+                        break;
 
-                            if (!entity.Versions.Any(v => v.Version == evt.Version))
-                            {
-                                var version = new CmsEntityVersion
-                                {
-                                    CmsEntityId = evt.Id,
-                                    Version = evt.Version,
-                                    Timestamp = evt.Timestamp,
-                                    Payload = evt.Payload?.GetRawText()
-                                };
-                                await _entityVersionRepo.AddAsync(version);
-                                entity.Versions.Add(version);
-                            }
-                            break;
-
-                        case "unpublish":
-                            if (entity != null)
-                            {
-                                if (!entity.Versions.Any(v => v.Version == evt.Version))
-                                {
-                                    var version = new CmsEntityVersion
-                                    {
-                                        CmsEntityId = evt.Id,
-                                        Version = evt.Version,
-                                        Timestamp = evt.Timestamp,
-                                        Payload = evt.Payload?.GetRawText()
-                                    };
-                                    await _entityVersionRepo.AddAsync(version);
-                                    entity.Versions.Add(version);
-                                }
-                                entity.IsDisabled = true;
-                            }
-                            break;
-
-                        case "delete":
-                            if (entity != null)
-                            {
-                                await _entityRepo.RemoveAsync(entity);
-                                entities.Remove(evt.Id);
-                            }
-                            break;
-
-                        default:
-                            _logger.LogWarning("Unknown event type '{EventType}' for entity {EntityId}", evt.Type, evt.Id);
-                            break;
-                    }
+                    default:
+                        _logger.LogWarning("Unknown event type '{EventType}' for entity {EntityId}", evt.Type, evt.Id);
+                        break;
                 }
+            }
 
-                await _entityRepo.SaveChangesAsync();
-                await transaction.CommitAsync();
-            }
-            catch
-            {
-                await transaction.RollbackAsync();
-                throw;
-            }
+            await _entityRepo.SaveChangesAsync();
+            await transaction.CommitAsync();
         }
-
-        private static bool IsValidEvent(CmsEventDto evt, out string error)
+        catch
         {
-            error = string.Empty;
-            var allowedTypes = new[] { "publish", "update", "unpublish", "delete" };
+            await transaction.RollbackAsync();
+            throw;
+        }
+    }
 
-            if (string.IsNullOrWhiteSpace(evt.Id))
-            {
-                error = "Id cannot be empty";
-                return false;
-            }
+    private static bool IsValidEvent(CmsEntityDto evt, out string error)
+    {
+        error = string.Empty;
 
-            if (!IdFormatRegex().IsMatch(evt.Id))
-            {
-                error = "Id format invalid";
-                return false;
-            }
-
-            if (!allowedTypes.Contains(evt.Type?.ToLowerInvariant()))
-            {
-                error = $"Invalid type {evt.Type}";
-                return false;
-            }
-
-            if (evt.Version < 1 && !string.Equals(evt.Type, "delete", StringComparison.OrdinalIgnoreCase))
-            {
-                error = $"Invalid version {evt.Version}";
-                return false;
-            }
-
-            if (evt.Timestamp == default || evt.Timestamp > DateTime.UtcNow.AddMinutes(5))
-            {
-                error = "Invalid timestamp";
-                return false;
-            }
-
-            if (evt.Payload.HasValue && evt.Payload.Value.GetRawText().Length > 1_000_000)
-            {
-                error = "Payload too large";
-                return false;
-            }
-
-            return true;
+        if (string.IsNullOrWhiteSpace(evt.Id))
+        {
+            error = "Id cannot be empty";
+            return false;
         }
 
-        [GeneratedRegex(@"^[a-zA-Z0-9\-]{1,50}$")]
-        private static partial Regex IdFormatRegex();
+        if (!IdFormatRegex().IsMatch(evt.Id))
+        {
+            error = "Id format invalid";
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(evt.Type) || !AllowedTypes.Contains(evt.Type))
+        {
+            error = $"Invalid type {evt.Type}";
+            return false;
+        }
+
+        if (evt.Version < 1 && !string.Equals(evt.Type, "delete", StringComparison.OrdinalIgnoreCase))
+        {
+            error = $"Invalid version {evt.Version}";
+            return false;
+        }
+
+        var now = DateTime.UtcNow;
+        if (evt.Timestamp == default || evt.Timestamp > now.AddMinutes(5))
+        {
+            error = "Invalid timestamp";
+            return false;
+        }
+
+        if (evt.Payload?.GetRawText().Length > 1_000_000)
+        {
+            error = "Payload too large";
+            return false;
+        }
+
+        return true;
+    }
+
+    [GeneratedRegex(@"^[a-zA-Z0-9\-]{1,50}$")]
+    private static partial Regex IdFormatRegex();
+
+    private async Task<CmsEntity> HandlePublishOrUpdate(
+        CmsEntityDto evt,
+        CmsEntity? entity,
+        Dictionary<string, CmsEntity> entities)
+    {
+        if (entity == null)
+        {
+            entity = new CmsEntity { Id = evt.Id, LatestVersion = evt.Version };
+            await _entityRepo.AddAsync(entity);
+            entities[evt.Id] = entity;
+        }
+        else
+        {
+            entity.IsDisabled = false;
+            entity.LatestVersion = Math.Max(entity.LatestVersion, evt.Version);
+        }
+
+        await _entityVersionRepo.AddVersionAsync(entity, evt);
+        return entity;
+    }
+
+    private async Task HandleUnpublish(CmsEntityDto evt, CmsEntity? entity)
+    {
+        if (entity == null) return;
+
+        await _entityVersionRepo.AddVersionAsync(entity, evt);
+        entity.IsDisabled = true;
+    }
+
+    private async Task HandleDelete(CmsEntityDto evt, CmsEntity? entity, Dictionary<string, CmsEntity> entities)
+    {
+        if (entity == null) return;
+
+        await _entityRepo.RemoveAsync(entity);
+        entities.Remove(evt.Id);
     }
 }

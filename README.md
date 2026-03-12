@@ -32,22 +32,24 @@ CMSApi
 │   └── CmsEntityVersion.cs – versioned data for entities
 │
 ├── Dtos
-│   └── CmsEventDto.cs – incoming CMS event schema (webhook payload)
-│
-├── Migrations – EF Core migrations
+│   └── CmsEventDto.cs – incoming CMS webhook event schema
 │
 ├── Services
-│   ├── Authentication
-│   │
 │   ├── ICmsEventService.cs – service interface for CMS event processing
 │   ├── IEntityService.cs – service interface for entity operations
 │   ├── CmsEventService.cs – event processing implementation
 │   └── EntityService.cs – entity-related business logic
 │
+├── Authentication
+│   ├── BasicAuthOptions.cs – configuration options for Basic Authentication
+│   └── BasicAuthenticationHandler.cs – handles Basic Authentication logic
+│
+├── Migrations – EF Core database migrations
+│
 ├── Properties
 │
 ├── appsettings.json – application configuration
-├── Program.cs – application entry point and service registration
+├── Program.cs – application entry point and dependency injection setup
 ├── CMSApi.http – REST API & webhook test cases
 ├── .gitignore
 └── README.md
