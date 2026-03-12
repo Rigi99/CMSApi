@@ -2,7 +2,7 @@
 
 namespace CMSApi.Services
 {
-    public interface IEntitiesService
+    public interface IEntityService
     {
         Task<List<CmsEntity>> GetEnabledEntitiesAsync();
         Task<List<CmsEntity>> GetAllEntitiesAsync();

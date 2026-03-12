@@ -3,10 +3,10 @@ using CMSApi.Repository;
 
 namespace CMSApi.Services
 {
-    public class EntitiesService(ICmsEntityRepository entityRepo, ILogger<EntitiesService> logger) : IEntitiesService
+    public class EntityService(ICmsEntityRepository entityRepo, ILogger<EntityService> logger) : IEntityService
     {
         private readonly ICmsEntityRepository _entityRepo = entityRepo;
-        private readonly ILogger<EntitiesService> _logger = logger;
+        private readonly ILogger<EntityService> _logger = logger;
 
         public async Task<List<CmsEntity>> GetEnabledEntitiesAsync()
         {
@@ -26,12 +26,12 @@ namespace CMSApi.Services
             if (_logger.IsEnabled(LogLevel.Information))
                 _logger.LogInformation("Fetched {Count} total entities", allEntities.Count);
 
-            return allEntities.Values.ToList();
+            return [.. allEntities.Values];
         }
 
         public async Task DisableEntityAsync(string id)
         {
-            var entities = await _entityRepo.GetByIdsAsync(new[] { id }); // <<< itt javítva
+            var entities = await _entityRepo.GetByIdsAsync(new[] { id });
 
             if (!entities.TryGetValue(id, out var entity))
             {

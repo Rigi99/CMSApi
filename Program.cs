@@ -30,7 +30,7 @@ builder.Services.AddScoped<ICmsEntityVersionRepository, CmsEntityVersionReposito
 
 // Register service (depends on repository now)
 builder.Services.AddScoped<ICmsEventService, CmsEventService>();
-builder.Services.AddScoped<IEntitiesService, EntitiesService>();
+builder.Services.AddScoped<IEntityService, EntityService>();
 
 
 // Basic Authentication
