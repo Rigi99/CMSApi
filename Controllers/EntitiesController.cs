@@ -1,58 +1,52 @@
-using CMSApi.Infrastructure;
+using CMSApi.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace CMSApi.Controllers;
 
 [ApiController]
 [Route("api/entities")]
-public class EntitiesController(ApplicationDbContext db) : ControllerBase
-{
-    private readonly ApplicationDbContext _db = db;
+[Authorize(AuthenticationSchemes = "BasicAuthentication")]
 
-    // GET: api/entities
+public class EntitiesController(IEntitiesService entitiesService,
+                                ILogger<EntitiesController> logger,
+                                IConfiguration configuration) : ControllerBase
+{
+    private readonly IEntitiesService _entitiesService = entitiesService;
+    private readonly ILogger<EntitiesController> _logger = logger;
+    private readonly IConfiguration _configuration = configuration;
+
     [HttpGet]
-    [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> GetEntities()
     {
-        var entities = await _db.CmsEntities
-            .AsNoTracking()
-            .Include(e => e.Versions)
-            .Where(e => !e.IsDisabled)
-            .ToListAsync();
-
+        var entities = await _entitiesService.GetEnabledEntitiesAsync();
         return Ok(entities);
     }
 
-    // GET: api/entities/admin
     [HttpGet("admin")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAllEntities()
     {
-        var entities = await _db.CmsEntities
-            .AsNoTracking()
-            .Include(e => e.Versions)
-            .ToListAsync();
+        if (User.Identity?.Name != _configuration["BasicAuth:AdminUsername"])
+            return Forbid();
 
+        var entities = await _entitiesService.GetAllEntitiesAsync();
         return Ok(entities);
     }
 
-    // PATCH: api/entities/{id}/disable
-    // Admin override (requirement: admin can disable entities without affecting CMS)
     [HttpPatch("{id}/disable")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DisableEntity(string id)
     {
-        var entity = await _db.CmsEntities.FirstOrDefaultAsync(e => e.Id == id);
+        if (User.Identity?.Name != _configuration["BasicAuth:AdminUsername"])
+            return Forbid();
 
-        if (entity == null)
+        try
+        {
+            await _entitiesService.DisableEntityAsync(id);
+            return Ok(new { message = $"Entity {id} disabled" });
+        }
+        catch (KeyNotFoundException)
+        {
             return NotFound(new { message = "Entity not found" });
-
-        entity.IsDisabled = true;
-
-        await _db.SaveChangesAsync();
-
-        return Ok(new { message = $"Entity {id} disabled" });
+        }
     }
 }

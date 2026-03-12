@@ -1,9 +1,10 @@
-using CMSApi.Dtos;
 using CMSApi.Infrastructure;
+using CMSApi.Repository;
 using CMSApi.Services;
-using Microsoft.AspNetCore.Mvc;
+using CMSApi.Authentication; 
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Authentication;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,26 +19,33 @@ builder.Services.AddControllers()
 
 builder.Services.AddSwaggerGen();
 
+// Configure EF Core DbContext
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"))
 );
 
-builder.Services.AddScoped<ICmsEventProcessor, CmsEventProcessor>();
+// Register repository
+builder.Services.AddScoped<ICmsEntityRepository, CmsEntityRepository>();
+builder.Services.AddScoped<ICmsEntityVersionRepository, CmsEntityVersionRepository>();
+
+// Register service (depends on repository now)
+builder.Services.AddScoped<ICmsEventService, CmsEventService>();
+builder.Services.AddScoped<IEntitiesService, EntitiesService>();
+
+
+// Basic Authentication
+builder.Services.AddAuthentication("BasicAuthentication")
+    .AddScheme<AuthenticationSchemeOptions, BasicAuthenticationHandler>("BasicAuthentication", null);
+
+builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
-// Configure middleware
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "CMS API V1");
-        c.RoutePrefix = string.Empty; // Swagger UI at root
-    });
-}
-
 app.UseHttpsRedirection();
+
+// Auth middleware
+app.UseAuthentication();
+app.UseAuthorization();
 
 // Register controllers
 app.MapControllers();
