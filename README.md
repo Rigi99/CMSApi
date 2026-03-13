@@ -15,38 +15,41 @@ A .NET 10 API service that ingests CMS events via a webhook and exposes entity d
 
 CMSApi
 ├── Controllers
-│   ├── CmsEntityController.cs – handles webhook events (publish, update, unPublish, delete)
-│   └── EntityController.cs – exposes entity data via REST API
+│ ├── CmsEntityController.cs – handles webhook events (publish, update, unPublish, delete)
+│ └── EntityController.cs – exposes entity data via REST API
 │
 ├── Data
-│   ├── Repository
-│   │   ├── ICmsEntityRepository.cs – repository interface for entities
-│   │   ├── ICmsEntityVersionRepository.cs – repository interface for entity versions
-│   │   ├── CmsEntityRepository.cs – repository implementation
-│   │   └── CmsEntityVersionRepository.cs – repository implementation
-│   │
-│   └── ApplicationDbContext.cs – EF Core DbContext and database configuration
+│ ├── Repository
+│ │ ├── ICmsEntityRepository.cs – repository interface for entities
+│ │ ├── ICmsEntityVersionRepository.cs – repository interface for entity versions
+│ │ ├── CmsEntityRepository.cs – repository implementation
+│ │ └── CmsEntityVersionRepository.cs – repository implementation
+│ │
+│ └── ApplicationDbContext.cs – EF Core DbContext and database configuration
 │
 ├── Domain
-│   ├── CmsEntity.cs – main entity model
-│   └── CmsEntityVersion.cs – versioned data for entities
+│ ├── CmsEntity.cs – main entity model
+│ └── CmsEntityVersion.cs – versioned data for entities
 │
 ├── Dtos
-│   └── CmsEntityDto.cs – incoming CMS webhook event schema
+│ └── CmsEntityDto.cs – incoming CMS webhook event schema
 │
 ├── Services
-│   ├── ICmsEntityService.cs – service interface for CMS event processing
-│   ├── IEntityService.cs – service interface for entity operations
-│   ├── CmsEntityService.cs – event processing implementation
-│   └── EntityService.cs – entity-related business logic
+│ ├── ICmsEntityService.cs – service interface for CMS event processing
+│ ├── IEntityService.cs – service interface for entity operations
+│ ├── CmsEntityService.cs – event processing implementation
+│ └── EntityService.cs – entity-related business logic
 │
 ├── Authentication
-│   ├── BasicAuthOptions.cs – configuration options for Basic Authentication
-│   └── BasicAuthenticationHandler.cs – handles Basic Authentication logic
+│ ├── BasicAuthOptions.cs – configuration options for Basic Authentication
+│ └── BasicAuthenticationService.cs – handles Basic Authentication logic
 │
 ├── Migrations – EF Core database migrations
 │
 ├── Properties
+│
+├── Tests
+│ └── CmsApi.Tests – unit tests for CMSApi
 │
 ├── appsettings.json – application configuration
 ├── Program.cs – application entry point and dependency injection setup
