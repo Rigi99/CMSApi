@@ -1,5 +1,4 @@
-﻿using Azure.Core;
-using Microsoft.AspNetCore.Authentication;
+﻿using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Options;
 using System.Net.Http.Headers;
 using System.Security.Claims;
@@ -8,13 +7,19 @@ using System.Text.Encodings.Web;
 
 namespace CMSApi.Authentication;
 
-public class BasicAuthenticationService(
-    IOptionsMonitor<AuthenticationSchemeOptions> options,
-    ILoggerFactory logger,
-    UrlEncoder encoder,
-    IOptions<BasicAuthOptions> authOptions) : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
+public class BasicAuthenticationService : AuthenticationHandler<AuthenticationSchemeOptions>
 {
-    private readonly BasicAuthOptions _options = authOptions.Value;
+    private readonly BasicAuthOptions _options;
+
+    public BasicAuthenticationService(
+        IOptionsMonitor<AuthenticationSchemeOptions> options,
+        ILoggerFactory logger,
+        UrlEncoder encoder,
+        IOptions<BasicAuthOptions> authOptions)
+        : base(options, logger, encoder)
+    {
+        _options = authOptions.Value;
+    }
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
@@ -41,16 +46,19 @@ public class BasicAuthenticationService(
 
         var credentials = DecodeCredentials(headerValue.Parameter);
         if (credentials == null)
-        {
             return Task.FromResult(AuthenticateResult.Fail("Invalid Username or Password"));
-        }
 
         if (!IsValidUser(credentials.Value.username, credentials.Value.password))
-        {
             return Task.FromResult(AuthenticateResult.Fail("Invalid Username or Password"));
-        }
 
-        var claims = new[] { new Claim(ClaimTypes.Name, credentials.Value.username) };
+        var role = credentials.Value.username == _options.AdminUsername ? "Admin" : "User";
+
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.Name, credentials.Value.username),
+            new Claim(ClaimTypes.Role, role)
+        };
+
         var identity = new ClaimsIdentity(claims, Scheme.Name);
         var principal = new ClaimsPrincipal(identity);
         var ticket = new AuthenticationTicket(principal, Scheme.Name);
@@ -76,6 +84,7 @@ public class BasicAuthenticationService(
 
     private bool IsValidUser(string username, string password)
     {
-        return (username == _options.Username && password == _options.Password);
+        return (username == _options.BasicUsername && password == _options.BasicPassword) ||
+               (username == _options.AdminUsername && password == _options.AdminPassword);
     }
 }

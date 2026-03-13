@@ -21,36 +21,73 @@ public class EntityController(
     [HttpGet]
     public async Task<IActionResult> GetEntities()
     {
-        var entities = await _entitiesService.GetEnabledEntitiesAsync();
-        return Ok(entities);
+        _logger.LogInformation("User {User} requested enabled entities", User.Identity?.Name);
+
+        try
+        {
+            var entities = await _entitiesService.GetEnabledEntitiesAsync();
+            _logger.LogInformation("Returned {Count} enabled entities to {User}", entities.Count(), User.Identity?.Name);
+            return Ok(entities);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching enabled entities for user {User}", User.Identity?.Name);
+            return StatusCode(500, new { message = "Internal server error" });
+        }
     }
 
     [HttpGet("admin")]
     public async Task<IActionResult> GetAllEntities()
     {
-        if (!IsAdmin())
-            return Forbid();
+        _logger.LogInformation("User {User} requested all entities (admin endpoint)", User.Identity?.Name);
 
-        var entities = await _entitiesService.GetAllEntitiesAsync();
-        return Ok(entities);
+        if (!IsAdmin())
+        {
+            _logger.LogWarning("Unauthorized access attempt to admin endpoint by user {User}", User.Identity?.Name);
+            return Forbid();
+        }
+
+        try
+        {
+            var entities = await _entitiesService.GetAllEntitiesAsync();
+            _logger.LogInformation("Returned {Count} entities to admin {User}", entities.Count(), User.Identity?.Name);
+            return Ok(entities);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching all entities for admin {User}", User.Identity?.Name);
+            return StatusCode(500, new { message = "Internal server error" });
+        }
     }
 
     [HttpPatch("{id}/disable")]
     public async Task<IActionResult> DisableEntity(string id)
     {
+        _logger.LogInformation("User {User} requested to disable entity {EntityId}", User.Identity?.Name, id);
+
         if (!IsAdmin())
+        {
+            _logger.LogWarning("Unauthorized disable attempt on entity {EntityId} by user {User}", id, User.Identity?.Name);
             return Forbid();
+        }
 
         try
         {
             await _entitiesService.DisableEntityAsync(id);
+            _logger.LogInformation("Entity {EntityId} disabled by admin {User}", id, User.Identity?.Name);
             return Ok(new { message = $"Entity {id} disabled" });
         }
         catch (KeyNotFoundException)
         {
+            _logger.LogWarning("Entity {EntityId} not found when disable was attempted by admin {User}", id, User.Identity?.Name);
             return NotFound(new { message = "Entity not found" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error disabling entity {EntityId} by admin {User}", id, User.Identity?.Name);
+            return StatusCode(500, new { message = "Internal server error" });
         }
     }
 
-    private bool IsAdmin() => User.Identity?.Name == _authOptions.Username;
+    private bool IsAdmin() => User.Identity?.Name == _authOptions.AdminUsername;
 }

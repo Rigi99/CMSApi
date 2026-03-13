@@ -32,6 +32,11 @@ builder.Services.AddScoped<ICmsEntityVersionRepository, CmsEntityVersionReposito
 builder.Services.AddScoped<ICmsEntityService, CmsEntityService>();
 builder.Services.AddScoped<IEntityService, EntityService>();
 
+// Bind BasicAuth configuration
+builder.Services.Configure<BasicAuthOptions>(
+    builder.Configuration.GetSection("BasicAuth")
+);
+
 // Basic Authentication
 builder.Services.AddAuthentication("BasicAuthentication")
     .AddScheme<AuthenticationSchemeOptions, BasicAuthenticationService>("BasicAuthentication", null);

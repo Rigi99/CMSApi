@@ -25,7 +25,7 @@ public class CmsEntityController(
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> PostEvents([FromBody] IEnumerable<CmsEntityDto> events)
     {
-        if (User.Identity?.Name != _authOptions.Username)
+        if (User.Identity?.Name != _authOptions.BasicUsername)
         {
             _logger.LogWarning("Unauthorized user {User} tried to post CMS events", User.Identity?.Name);
             return Forbid();

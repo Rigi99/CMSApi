@@ -59,7 +59,7 @@ public class CmsEntityRepository(ApplicationDbContext db, ILogger<CmsEntityRepos
         {
             _db.CmsEntities.Remove(entity);
             _logger.LogInformation("Entity {EntityId} removed from DbContext", entity.Id);
-            await Task.CompletedTask; // async placeholder
+            await Task.CompletedTask;
         }
         catch (Exception ex)
         {

@@ -14,18 +14,14 @@ public partial class CmsEntityService(
     private readonly ICmsEntityVersionRepository _entityVersionRepo = entityVersionRepo;
     private readonly ILogger<CmsEntityService> _logger = logger;
 
-    private static readonly HashSet<string> AllowedTypes =
-        new(StringComparer.OrdinalIgnoreCase)
-        {
-            "publish", "update", "unpublish", "delete"
-        };
-
     public async Task ProcessEventsAsync(IEnumerable<CmsEntityDto> events)
     {
-        var eventList = events
-            .OrderBy(e => e.Timestamp)
-            .ThenBy(e => e.Version)
-            .ToList();
+        ArgumentNullException.ThrowIfNull(events);
+
+        var eventList = events.Where(e => e != null).ToList();
+
+        if (eventList.Count == 0)
+            throw new InvalidOperationException("No events received");
 
         _logger.LogInformation("Starting to process {EventCount} CMS events", eventList.Count);
 
@@ -33,17 +29,27 @@ public partial class CmsEntityService(
 
         try
         {
-            var ids = eventList.Select(e => e.Id).Distinct().ToList();
-            var entities = await _entityRepo.GetByIdsAsync(ids);
+            var ids = eventList
+    .Select(e => e.Id)
+    .Where(id => !string.IsNullOrWhiteSpace(id))
+    .Distinct()
+    .ToList();
+
+            var entities = await _entityRepo.GetByIdsAsync(ids) ?? new Dictionary<string, CmsEntity>();
 
             foreach (var evt in eventList)
             {
                 if (!IsValidEvent(evt, out var error))
                     throw new InvalidOperationException($"Invalid event {evt.Id}: {error}");
 
-                var entity = entities.GetValueOrDefault(evt.Id);
+                entities.TryGetValue(evt.Id, out var entity);
 
-                switch (evt.Type?.ToLowerInvariant())
+                if (string.IsNullOrWhiteSpace(evt.Type))
+                    throw new InvalidOperationException($"Invalid event type for {evt.Id}");
+
+                var eventType = evt.Type.ToLowerInvariant();
+
+                switch (eventType)
                 {
                     case "publish":
                     case "update":
@@ -51,24 +57,30 @@ public partial class CmsEntityService(
                         break;
 
                     case "unpublish":
-                        await HandleUnpublish(evt, entity);
+                        if (entity != null)
+                            await HandleUnpublish(evt, entity);
+                        else
+                            _logger.LogWarning("Unpublish event for missing entity {Id}", evt.Id);
                         break;
 
                     case "delete":
-                        await HandleDelete(evt, entity, entities);
+                        if (entity != null)
+                            await HandleDelete(evt, entity, entities);
+                        else
+                            _logger.LogWarning("Delete event for missing entity {Id}", evt.Id);
                         break;
 
                     default:
-                        _logger.LogWarning("Unknown event type '{EventType}' for entity {EntityId}", evt.Type, evt.Id);
-                        break;
+                        throw new InvalidOperationException($"Unknown event type '{evt.Type}' for {evt.Id}");
                 }
             }
 
             await _entityRepo.SaveChangesAsync();
             await transaction.CommitAsync();
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "Error processing CMS events");
             await transaction.RollbackAsync();
             throw;
         }
@@ -90,7 +102,7 @@ public partial class CmsEntityService(
             return false;
         }
 
-        if (string.IsNullOrWhiteSpace(evt.Type) || !AllowedTypes.Contains(evt.Type))
+        if (string.IsNullOrWhiteSpace(evt.Type))
         {
             error = $"Invalid type {evt.Type}";
             return false;
@@ -122,9 +134,9 @@ public partial class CmsEntityService(
     private static partial Regex IdFormatRegex();
 
     private async Task<CmsEntity> HandlePublishOrUpdate(
-        CmsEntityDto evt,
-        CmsEntity? entity,
-        Dictionary<string, CmsEntity> entities)
+    CmsEntityDto evt,
+    CmsEntity? entity,
+    Dictionary<string, CmsEntity> entities)
     {
         if (entity == null)
         {
@@ -138,7 +150,10 @@ public partial class CmsEntityService(
             entity.LatestVersion = Math.Max(entity.LatestVersion, evt.Version);
         }
 
-        await _entityVersionRepo.AddVersionAsync(entity, evt);
+        var exists = await _entityVersionRepo.ExistsAsync(entity.Id, evt.Version);
+        if (!exists)
+            await _entityVersionRepo.AddVersionAsync(entity, evt);
+
         return entity;
     }
 
@@ -146,13 +161,16 @@ public partial class CmsEntityService(
     {
         if (entity == null) return;
 
-        await _entityVersionRepo.AddVersionAsync(entity, evt);
+        var exists = await _entityVersionRepo.ExistsAsync(entity.Id, evt.Version);
+        if (!exists)
+            await _entityVersionRepo.AddVersionAsync(entity, evt);
+
         entity.IsDisabled = true;
     }
 
-    private async Task HandleDelete(CmsEntityDto evt, CmsEntity? entity, Dictionary<string, CmsEntity> entities)
+    private async Task HandleDelete(CmsEntityDto evt, CmsEntity? entity, Dictionary<string, CmsEntity>? entities)
     {
-        if (entity == null) return;
+        if (entity == null || entities == null) return;
 
         await _entityRepo.RemoveAsync(entity);
         entities.Remove(evt.Id);

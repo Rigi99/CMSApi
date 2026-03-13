@@ -28,11 +28,21 @@ public class EntityService(ICmsEntityRepository entityRepo, ILogger<EntityServic
 
     public async Task DisableEntityAsync(string id)
     {
-        var entities = await _entityRepo.GetByIdsAsync(new[] { id });
+        if (string.IsNullOrWhiteSpace(id))
+            throw new ArgumentNullException(nameof(id), "Id cannot be null or whitespace");
+
+        var entities = await _entityRepo.GetByIdsAsync([id]) ?? [];
+
         if (!entities.TryGetValue(id, out var entity) || entity == null)
         {
             _logger.LogWarning("Entity {EntityId} not found", id);
             throw new KeyNotFoundException($"Entity {id} not found");
+        }
+
+        if (entity.IsDisabled)
+        {
+            _logger.LogInformation("Entity {EntityId} is already disabled", id);
+            return;
         }
 
         entity.IsDisabled = true;

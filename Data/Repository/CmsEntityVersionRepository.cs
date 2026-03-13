@@ -56,4 +56,10 @@ public class CmsEntityVersionRepository(ApplicationDbContext db, ILogger<CmsEnti
             throw;
         }
     }
+
+    public async Task<bool> ExistsAsync(string entityId, int version)
+    {
+        return await _db.CmsEntityVersions
+            .AnyAsync(v => v.CmsEntityId == entityId && v.Version == version);
+    }
 }
