@@ -21,10 +21,10 @@ public class ApplicationDbContextTests
         await using var context = CreateContext();
 
         var entity = new CmsEntity { Id = "1" };
-        await context.CmsEntities.AddAsync(entity, TestContext.Current.CancellationToken);
-        await context.SaveChangesAsync(TestContext.Current.CancellationToken);
+        await context.CmsEntities.AddAsync(entity, CancellationToken.None);
+        await context.SaveChangesAsync(CancellationToken.None);
 
-        var fetched = await context.CmsEntities.FindAsync(["1"], TestContext.Current.CancellationToken);
+        var fetched = await context.CmsEntities.FindAsync(["1"], CancellationToken.None);
         Assert.NotNull(fetched);
         Assert.Equal("1", fetched!.Id);
     }
@@ -43,12 +43,12 @@ public class ApplicationDbContextTests
         };
         entity.Versions.Add(version);
 
-        await context.CmsEntities.AddAsync(entity, TestContext.Current.CancellationToken);
-        await context.SaveChangesAsync(TestContext.Current.CancellationToken);
+        await context.CmsEntities.AddAsync(entity, CancellationToken.None);
+        await context.SaveChangesAsync(CancellationToken.None);
 
         var fetchedEntity = await context.CmsEntities
             .Include(e => e.Versions)
-            .FirstOrDefaultAsync(e => e.Id == "1", cancellationToken: TestContext.Current.CancellationToken);
+            .FirstOrDefaultAsync(e => e.Id == "1", cancellationToken: CancellationToken.None);
 
         Assert.NotNull(fetchedEntity);
         Assert.Single(fetchedEntity!.Versions);
@@ -69,13 +69,13 @@ public class ApplicationDbContextTests
         };
         entity.Versions.Add(version);
 
-        await context.CmsEntities.AddAsync(entity, TestContext.Current.CancellationToken);
-        await context.SaveChangesAsync(TestContext.Current.CancellationToken);
+        await context.CmsEntities.AddAsync(entity, CancellationToken.None);
+        await context.SaveChangesAsync(CancellationToken.None);
 
         context.CmsEntities.Remove(entity);
-        await context.SaveChangesAsync(TestContext.Current.CancellationToken);
+        await context.SaveChangesAsync(CancellationToken.None);
 
-        var versionsCount = await context.CmsEntityVersions.CountAsync(cancellationToken: TestContext.Current.CancellationToken);
+        var versionsCount = await context.CmsEntityVersions.CountAsync(cancellationToken: CancellationToken.None);
         Assert.Equal(0, versionsCount);
     }
 }

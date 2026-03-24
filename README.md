@@ -1,73 +1,64 @@
 # CMS API
 
-A .NET 10 API service that ingests CMS events via a webhook and exposes entity data via a REST API.
+.NET 10 Web API that ingests CMS webhook events, stores versioned entities with EF Core, and exposes a restricted REST API with Basic Authentication + role policies.
+
+## Key Features
+
+- Batch webhook ingestion on `/cms/events`
+- Event types: `publish`, `update`, `unpublish`, `delete`
+- Version history in `CmsEntityVersions`
+- Hard delete on `delete`, local disable on `unpublish` and admin override
+- Role-separated API access (`CmsIngest`, `ApiUser`, `Admin`)
 
 ## Tech Stack
 
-- .NET 8/9/10
-- EF Core
-- SQL Server (MSSQL)
-- Minimal API / Controllers
-- Swagger UI for testing
-- Basic Authentication for webhook endpoint
+- .NET 10
+- EF Core 10
+- SQL Server + SQLite providers
+- ASP.NET Core Controllers
+- xUnit + Moq tests
 
-## Project Structure
+## Authentication & Authorization
 
-CMSApi
-├── Controllers
-│ ├── CmsEntityController.cs – handles webhook events (publish, update, unPublish, delete)
-│ └── EntityController.cs – exposes entity data via REST API
-│
-├── Data
-│ ├── Repository
-│ │ ├── ICmsEntityRepository.cs – repository interface for entities
-│ │ ├── ICmsEntityVersionRepository.cs – repository interface for entity versions
-│ │ ├── CmsEntityRepository.cs – repository implementation
-│ │ └── CmsEntityVersionRepository.cs – repository implementation
-│ │
-│ └── ApplicationDbContext.cs – EF Core DbContext and database configuration
-│
-├── Domain
-│ ├── CmsEntity.cs – main entity model
-│ └── CmsEntityVersion.cs – versioned data for entities
-│
-├── Dtos
-│ └── CmsEntityDto.cs – incoming CMS webhook event schema
-│
-├── Services
-│ ├── ICmsEntityService.cs – service interface for CMS event processing
-│ ├── IEntityService.cs – service interface for entity operations
-│ ├── CmsEntityService.cs – event processing implementation
-│ └── EntityService.cs – entity-related business logic
-│
-├── Authentication
-│ ├── BasicAuthOptions.cs – configuration options for Basic Authentication
-│ └── BasicAuthenticationService.cs – handles Basic Authentication logic
-│
-├── Migrations – EF Core database migrations
-│
-├── Properties
-│
-├── Tests
-│ └── CmsApi.Tests – unit tests for CMSApi
-│
-├── appsettings.json – application configuration
-├── Program.cs – application entry point and dependency injection setup
-├── CMSApi.http – REST API & webhook test cases
-├── .gitignore
-└── README.md
+Basic auth credentials are read from `BasicAuth` config and mapped to roles:
 
----
+- `BasicUsername` / `BasicPassword` -> `CmsIngest`
+- `ApiUsername` / `ApiPassword` -> `ApiUser`
+- `AdminUsername` / `AdminPassword` -> `Admin`
 
-## Getting Started
+Policies:
 
-### Prerequisites
+- `CmsIngestPolicy`: only `CmsIngest` role (webhook ingestion)
+- `ApiReadPolicy`: `ApiUser` or `Admin` (entity read endpoints)
+- `AdminPolicy`: only `Admin` (admin-only endpoints)
 
-- .NET 9 or 10 SDK  
-- Git  
-- SQL Server (MSSQL)  
+## Endpoints
 
-### Run locally
+- `POST /cms/events` (CmsIngest only)
+- `GET /api/entities` (ApiUser/Admin)
+- `GET /api/entities/admin` (Admin only)
+- `PATCH /api/entities/{id}/disable` (Admin only)
+
+## Database Configuration
+
+The app supports provider switching with `DatabaseProvider`.
+
+- `SqlServer` (default in `appsettings.json` and `appsettings.Development.json`)
+- `Sqlite` (optional, can be enabled manually for local cross-platform dev)
+
+### Default config
+
+`appsettings.json`:
+
+- `DatabaseProvider`: `SqlServer`
+- `ConnectionStrings:DefaultConnection`: LocalDB SQL Server connection
+
+`appsettings.Development.json`:
+
+- `DatabaseProvider`: `SqlServer`
+- `ConnectionStrings:SqliteConnection`: `Data Source=cmsapi.dev.db`
+
+## Run Locally
 
 ```bash
 dotnet restore
@@ -75,125 +66,40 @@ dotnet build
 dotnet run
 ```
 
-## Git workflow
+By default, Development environment runs on SQLite and works on both Windows and macOS/Linux.
+By default, Development environment runs on SQL Server. If you want to use SQLite locally, change `DatabaseProvider` in `appsettings.Development.json` to `Sqlite`.
 
-- main → stable, production-ready
+On Windows, the default `DefaultConnection` uses LocalDB.
 
-- dev → development
+On macOS/Linux, use one of these options:
 
-- staging → pre-release testing
+- switch `DatabaseProvider` to `Sqlite` for file-based local development
+- keep `SqlServer` and point `DefaultConnection` to a SQL Server container
 
-### Webhook API
+## SQL Server in Docker (Optional)
 
-POST /cms/events
+If you prefer SQL Server cross-platform, you can run it in Docker:
 
-Handles CMS events: publish, update, delete, unPublish
-
-JSON example:
-
-```
-[
-  {
-    "type": "publish",
-    "id": "entity1",
-    "payload": {
-      "name": "Test Entity",
-      "description": "This is a test"
-    },
-    "version": 1,
-    "timestamp": "2024-01-01T00:00:00Z"
-  }
-]
+```bash
+docker run -e "ACCEPT_EULA=Y" -e "MSSQL_SA_PASSWORD=YourStrong!Passw0rd" -p 1433:1433 --name cms-sql -d mcr.microsoft.com/mssql/server:2022-latest
 ```
 
-- payload can be null for delete events
+Then set in `appsettings.Development.json`:
 
-- Event versioning is managed via CmsEntity and CmsEntityVersion models
-
-## REST API
-
-- EntitiesController – lists entities for consumers
-
-- Admin users can see all entities, including disabled ones
-
-- Regular users cannot modify data via the REST API
-
-- Admins can override entity status (disable) locally, without affecting the CMS
-
-## Authentication
-
-- The /cms/events webhook endpoint is protected with Basic Authentication.
-- Implemented via the Authentication/BasicAuthenticationHandler.cs and BasicAuthOptions.cs.
-- Credentials are stored securely in appsettings.json:
-```
-"BasicAuth": {
-  "BasicUsername": "basic_user",
-  "BasicPassword": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
-  "AdminUsername": "admin_user",
-  "AdminPassword": "e02b2c3d-479f-47ac-10b5-8cc4372a5670"
-}
-```
-- CMS user → BasicUsername / BasicPassword
-- Admin user → AdminUsername / AdminPassword
-
-
-## Flow
-
-1. CMS webhook event arrives at /cms/events
-
-2. CmsEventProcessor processes events:
-
-- publish → saves a new version
-
-- update → updates existing entity
-
-- unPublish → disables entity but keeps it in database
-
-- delete → permanently deletes the entity
-
-3. REST API exposes entities to users and admins
+- `DatabaseProvider`: `SqlServer`
+- `ConnectionStrings:DefaultConnection`: `Server=localhost,1433;Database=CMSApiDb;User Id=sa;Password=YourStrong!Passw0rd;TrustServerCertificate=True;`
 
 ## Testing
 
-- The .http file allows testing publish, update, delete events easily
+Run all tests:
 
-- Swagger UI is available for quick manual testing
+```bash
+dotnet test CMSApi.Tests/CMSApi.Tests.csproj --nologo
+```
 
+## Notes
 
-## Data Privacy
-
-- All CMS data should be treated as confidential / restricted.
-
-- Do not expose any entity publicly.
-
-## Event Handling & Versioning
-
-- The webhook can send batch events (multiple events in a single request).
-
-- Event types: publish, update, delete, unPublish.
-
-- Versioning rules:
-
-    - Each update creates a new version (X → X+1).
-    - If an entity is unpublished and there was no previously published version, latest version may be unavailable — handle this edge case
-
-## Application Layer Rules
-
-- Validate and sanitize all incoming data.
-
-- Delete events → hard delete in the database.
-
-- Unpublish events → keep the entity in the database but mark it disabled.
-
-## Performance
-
-- Using asynchronous mechanisms for event processing improves throughput and latency.
-
-- EF Core context is configured with read-only / writer separation to optimize read queries.
-
-
-## Observability & Logging
-
-- Log all processed events, including failures.
-
-- Include timestamps and event metadata in logs for debugging and auditing.
+- All CMS data is treated as restricted.
+- Incoming events are validated before processing.
+- Event processing is transactional with logging for both success and failure paths.
+- Read/write separation is implemented with dedicated EF Core contexts (`ApplicationDbContext` for writes, `ReadOnlyApplicationDbContext` for read queries).

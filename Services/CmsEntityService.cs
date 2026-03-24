@@ -57,10 +57,7 @@ public partial class CmsEntityService(
                         break;
 
                     case "unpublish":
-                        if (entity != null)
-                            await HandleUnpublish(evt, entity);
-                        else
-                            _logger.LogWarning("Unpublish event for missing entity {Id}", evt.Id);
+                        entity = await HandleUnpublish(evt, entity, entities);
                         break;
 
                     case "delete":
@@ -157,15 +154,34 @@ public partial class CmsEntityService(
         return entity;
     }
 
-    private async Task HandleUnpublish(CmsEntityDto evt, CmsEntity? entity)
+    private async Task<CmsEntity> HandleUnpublish(
+        CmsEntityDto evt,
+        CmsEntity? entity,
+        Dictionary<string, CmsEntity> entities)
     {
-        if (entity == null) return;
+        if (entity == null)
+        {
+            entity = new CmsEntity
+            {
+                Id = evt.Id,
+                LatestVersion = evt.Version,
+                IsDisabled = true
+            };
+
+            await _entityRepo.AddAsync(entity);
+            entities[evt.Id] = entity;
+
+            _logger.LogInformation("Created missing entity {Id} from unpublish event", evt.Id);
+        }
 
         var exists = await _entityVersionRepo.ExistsAsync(entity.Id, evt.Version);
         if (!exists)
             await _entityVersionRepo.AddVersionAsync(entity, evt);
 
+        entity.LatestVersion = Math.Max(entity.LatestVersion, evt.Version);
         entity.IsDisabled = true;
+
+        return entity;
     }
 
     private async Task HandleDelete(CmsEntityDto evt, CmsEntity? entity, Dictionary<string, CmsEntity>? entities)

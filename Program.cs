@@ -19,10 +19,14 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.MaxDepth = 32; // optimized for performance
     });
 
-// EF Core DbContext
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"))
-);
+// EF Core DbContexts (write + read-only)
+builder.Services.AddDbContext<ApplicationDbContext>(options => ConfigureDbProvider(options, builder.Configuration));
+
+builder.Services.AddDbContext<ReadOnlyApplicationDbContext>(options =>
+{
+    ConfigureDbProvider(options, builder.Configuration);
+    options.UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking);
+});
 
 // Repository DI
 builder.Services.AddScoped<ICmsEntityRepository, CmsEntityRepository>();
@@ -41,7 +45,13 @@ builder.Services.Configure<BasicAuthOptions>(
 builder.Services.AddAuthentication("BasicAuthentication")
     .AddScheme<AuthenticationSchemeOptions, BasicAuthenticationService>("BasicAuthentication", null);
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorizationBuilder()
+    .AddPolicy("CmsIngestPolicy", policy =>
+        policy.RequireRole("CmsIngest"))
+    .AddPolicy("ApiReadPolicy", policy =>
+        policy.RequireRole("ApiUser", "Admin"))
+    .AddPolicy("AdminPolicy", policy =>
+        policy.RequireRole("Admin"));
 
 var app = builder.Build();
 
@@ -54,3 +64,21 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
+static void ConfigureDbProvider(DbContextOptionsBuilder options, IConfiguration configuration)
+{
+    var provider = configuration["DatabaseProvider"] ?? "SqlServer";
+
+    if (provider.Equals("Sqlite", StringComparison.OrdinalIgnoreCase))
+    {
+        var sqliteConnection = configuration.GetConnectionString("SqliteConnection")
+            ?? "Data Source=cmsapi.dev.db";
+        options.UseSqlite(sqliteConnection);
+    }
+    else
+    {
+        var sqlServerConnection = configuration.GetConnectionString("DefaultConnection")
+            ?? throw new InvalidOperationException("DefaultConnection is not configured.");
+        options.UseSqlServer(sqlServerConnection);
+    }
+}

@@ -1,0 +1,34 @@
+using CMSApi.Domain;
+using Microsoft.EntityFrameworkCore;
+
+namespace CMSApi.Data;
+
+public class ReadOnlyApplicationDbContext(DbContextOptions<ReadOnlyApplicationDbContext> options) : DbContext(options)
+{
+    public DbSet<CmsEntity> CmsEntities => Set<CmsEntity>();
+    public DbSet<CmsEntityVersion> CmsEntityVersions => Set<CmsEntityVersion>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<CmsEntity>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasMany(e => e.Versions)
+                  .WithOne(v => v.CmsEntity)
+                  .HasForeignKey(v => v.CmsEntityId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<CmsEntityVersion>(entity =>
+        {
+            entity.HasKey(v => v.Id);
+            entity.Property(v => v.Version).IsRequired();
+            entity.Property(v => v.Timestamp).IsRequired();
+            entity.Property(v => v.Payload).HasColumnType("nvarchar(max)");
+            entity.HasIndex(v => new { v.CmsEntityId, v.Version })
+                  .IsUnique();
+        });
+    }
+}

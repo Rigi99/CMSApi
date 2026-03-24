@@ -1,11 +1,9 @@
-﻿using CMSApi.Authentication;
-using CMSApi.Controllers;
+﻿using CMSApi.Controllers;
 using CMSApi.Domain;
 using CMSApi.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Moq;
 using System.Security.Claims;
 using Xunit;
@@ -16,22 +14,22 @@ public class EntityControllerTests
 {
     private readonly Mock<IEntityService> _serviceMock;
     private readonly Mock<ILogger<EntityController>> _loggerMock;
-    private readonly IOptions<BasicAuthOptions> _authOptions;
     private readonly EntityController _controller;
 
     public EntityControllerTests()
     {
         _serviceMock = new Mock<IEntityService>();
         _loggerMock = new Mock<ILogger<EntityController>>();
-        // Javított property név: AdminUsername
-        _authOptions = Options.Create(new BasicAuthOptions { AdminUsername = "admin_user" });
-
-        _controller = new EntityController(_serviceMock.Object, _loggerMock.Object, _authOptions);
+        _controller = new EntityController(_serviceMock.Object, _loggerMock.Object);
     }
 
-    private void SetUser(string username)
+    private void SetUser(string username, string role = "ApiUser")
     {
-        var user = new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim(ClaimTypes.Name, username) }, "mock"));
+        var user = new ClaimsPrincipal(new ClaimsIdentity(new[]
+        {
+            new Claim(ClaimTypes.Name, username),
+            new Claim(ClaimTypes.Role, role)
+        }, "mock"));
         _controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext { User = user }
@@ -77,7 +75,7 @@ public class EntityControllerTests
     [Fact]
     public async Task GetAllEntities_AsAdmin_ShouldReturnOk()
     {
-        SetUser("admin_user");
+        SetUser("admin_user", "Admin");
 
         var entities = new List<CmsEntity> { new() { Id = "1" } };
         _serviceMock.Setup(s => s.GetAllEntitiesAsync()).ReturnsAsync(entities);
@@ -92,7 +90,7 @@ public class EntityControllerTests
     [Fact]
     public async Task GetAllEntities_AsNonAdmin_ShouldReturnForbid()
     {
-        SetUser("basic_user");
+        SetUser("basic_user", "ApiUser");
 
         var result = await _controller.GetAllEntities();
 
@@ -103,7 +101,7 @@ public class EntityControllerTests
     [Fact]
     public async Task DisableEntity_AsAdmin_ShouldReturnOk()
     {
-        SetUser("admin_user");
+        SetUser("admin_user", "Admin");
         var id = "1";
 
         var result = await _controller.DisableEntity(id);
@@ -118,7 +116,7 @@ public class EntityControllerTests
     [Fact]
     public async Task DisableEntity_AsAdmin_NotFound_ShouldReturnNotFound()
     {
-        SetUser("admin_user");
+        SetUser("admin_user", "Admin");
         var id = "missing";
 
         _serviceMock.Setup(s => s.DisableEntityAsync(id))
@@ -134,7 +132,7 @@ public class EntityControllerTests
     [Fact]
     public async Task DisableEntity_AsNonAdmin_ShouldReturnForbid()
     {
-        SetUser("basic_user");
+        SetUser("basic_user", "ApiUser");
 
         var result = await _controller.DisableEntity("1");
 

@@ -12,17 +12,25 @@ namespace CMSApi.Tests.Repositories
     {
         private readonly CmsEntityRepository _repo;
         private readonly ApplicationDbContext _db;
+        private readonly ReadOnlyApplicationDbContext _readDb;
 
         public CmsEntityRepositoryTests()
         {
+            var dbName = Guid.NewGuid().ToString();
+
             var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-                .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                .UseInMemoryDatabase(dbName)
+                .Options;
+
+            var readOptions = new DbContextOptionsBuilder<ReadOnlyApplicationDbContext>()
+                .UseInMemoryDatabase(dbName)
                 .Options;
 
             _db = new ApplicationDbContext(options);
+            _readDb = new ReadOnlyApplicationDbContext(readOptions);
 
             var loggerMock = new Mock<ILogger<CmsEntityRepository>>();
-            _repo = new CmsEntityRepository(_db, loggerMock.Object);
+            _repo = new CmsEntityRepository(_db, _readDb, loggerMock.Object);
         }
 
         [Fact]
@@ -31,9 +39,9 @@ namespace CMSApi.Tests.Repositories
             var entity = new CmsEntity { Id = "1" };
 
             await _repo.AddAsync(entity);
-            await _db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            await _db.SaveChangesAsync(CancellationToken.None);
 
-            var saved = await _db.CmsEntities.FindAsync(["1"], TestContext.Current.CancellationToken);
+            var saved = await _db.CmsEntities.FindAsync(["1"], CancellationToken.None);
             Assert.NotNull(saved);
             Assert.Equal("1", saved.Id);
         }
@@ -44,7 +52,7 @@ namespace CMSApi.Tests.Repositories
             var e1 = new CmsEntity { Id = "1" };
             var e2 = new CmsEntity { Id = "2" };
             await _db.CmsEntities.AddRangeAsync(e1, e2);
-            await _db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            await _db.SaveChangesAsync(CancellationToken.None);
 
             var result = await _repo.GetByIdsAsync(["1", "2", "3"]);
 
@@ -60,7 +68,7 @@ namespace CMSApi.Tests.Repositories
             var e1 = new CmsEntity { Id = "1" };
             var e2 = new CmsEntity { Id = "2" };
             await _db.CmsEntities.AddRangeAsync(e1, e2);
-            await _db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            await _db.SaveChangesAsync(CancellationToken.None);
 
             var result = await _repo.GetAllAsync();
 
@@ -73,13 +81,13 @@ namespace CMSApi.Tests.Repositories
         public async Task RemoveAsync_ShouldDeleteEntity()
         {
             var entity = new CmsEntity { Id = "1" };
-            await _db.CmsEntities.AddAsync(entity, TestContext.Current.CancellationToken);
-            await _db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            await _db.CmsEntities.AddAsync(entity, CancellationToken.None);
+            await _db.SaveChangesAsync(CancellationToken.None);
 
             await _repo.RemoveAsync(entity);
-            await _db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            await _db.SaveChangesAsync(CancellationToken.None);
 
-            var found = await _db.CmsEntities.FindAsync(new object?[] { "1" }, TestContext.Current.CancellationToken);
+            var found = await _db.CmsEntities.FindAsync(new object?[] { "1" }, CancellationToken.None);
             Assert.Null(found);
         }
 
