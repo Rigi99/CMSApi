@@ -48,10 +48,8 @@ public class BasicAuthenticationService : AuthenticationHandler<AuthenticationSc
         if (credentials == null)
             return Task.FromResult(AuthenticateResult.Fail("Invalid Username or Password"));
 
-        if (!IsValidUser(credentials.Value.username, credentials.Value.password))
+        if (!TryResolveRole(credentials.Value.username, credentials.Value.password, out var role))
             return Task.FromResult(AuthenticateResult.Fail("Invalid Username or Password"));
-
-        var role = credentials.Value.username == _options.AdminUsername ? "Admin" : "User";
 
         var claims = new[]
         {
@@ -82,9 +80,27 @@ public class BasicAuthenticationService : AuthenticationHandler<AuthenticationSc
         }
     }
 
-    private bool IsValidUser(string username, string password)
+    private bool TryResolveRole(string username, string password, out string role)
     {
-        return (username == _options.BasicUsername && password == _options.BasicPassword) ||
-               (username == _options.AdminUsername && password == _options.AdminPassword);
+        if (username == _options.BasicUsername && password == _options.BasicPassword)
+        {
+            role = "CmsIngest";
+            return true;
+        }
+
+        if (username == _options.ApiUsername && password == _options.ApiPassword)
+        {
+            role = "ApiUser";
+            return true;
+        }
+
+        if (username == _options.AdminUsername && password == _options.AdminPassword)
+        {
+            role = "Admin";
+            return true;
+        }
+
+        role = string.Empty;
+        return false;
     }
 }

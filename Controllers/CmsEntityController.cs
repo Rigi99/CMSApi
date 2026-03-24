@@ -1,23 +1,19 @@
-using CMSApi.Authentication;
 using CMSApi.Dtos;
 using CMSApi.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Options;
 
 namespace CMSApi.Controllers;
 
 [ApiController]
 [Route("cms/events")]
-[Authorize(AuthenticationSchemes = "BasicAuthentication")]
+[Authorize(AuthenticationSchemes = "BasicAuthentication", Policy = "CmsIngestPolicy")]
 public class CmsEntityController(
     ICmsEntityService cmsEventService,
-    ILogger<CmsEntityController> logger,
-    IOptions<BasicAuthOptions> authOptions) : ControllerBase
+    ILogger<CmsEntityController> logger) : ControllerBase
 {
     private readonly ICmsEntityService _cmsEventService = cmsEventService;
     private readonly ILogger<CmsEntityController> _logger = logger;
-    private readonly BasicAuthOptions _authOptions = authOptions.Value;
 
     // POST: /cms/events
     [HttpPost]
@@ -25,7 +21,7 @@ public class CmsEntityController(
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> PostEvents([FromBody] IEnumerable<CmsEntityDto> events)
     {
-        if (User.Identity?.Name != _authOptions.BasicUsername)
+        if (!User.IsInRole("CmsIngest"))
         {
             _logger.LogWarning("Unauthorized user {User} tried to post CMS events", User.Identity?.Name);
             return Forbid();

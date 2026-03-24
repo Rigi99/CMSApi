@@ -1,22 +1,18 @@
-using CMSApi.Authentication;
 using CMSApi.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Options;
 
 namespace CMSApi.Controllers;
 
 [ApiController]
 [Route("api/entities")]
-[Authorize(AuthenticationSchemes = "BasicAuthentication")]
+[Authorize(AuthenticationSchemes = "BasicAuthentication", Policy = "ApiReadPolicy")]
 public class EntityController(
     IEntityService entitiesService,
-    ILogger<EntityController> logger,
-    IOptions<BasicAuthOptions> authOptions) : ControllerBase
+    ILogger<EntityController> logger) : ControllerBase
 {
     private readonly IEntityService _entitiesService = entitiesService;
     private readonly ILogger<EntityController> _logger = logger;
-    private readonly BasicAuthOptions _authOptions = authOptions.Value;
 
     [HttpGet]
     public async Task<IActionResult> GetEntities()
@@ -37,11 +33,12 @@ public class EntityController(
     }
 
     [HttpGet("admin")]
+    [Authorize(AuthenticationSchemes = "BasicAuthentication", Policy = "AdminPolicy")]
     public async Task<IActionResult> GetAllEntities()
     {
         _logger.LogInformation("User {User} requested all entities (admin endpoint)", User.Identity?.Name);
 
-        if (!IsAdmin())
+        if (!User.IsInRole("Admin"))
         {
             _logger.LogWarning("Unauthorized access attempt to admin endpoint by user {User}", User.Identity?.Name);
             return Forbid();
@@ -61,11 +58,12 @@ public class EntityController(
     }
 
     [HttpPatch("{id}/disable")]
+    [Authorize(AuthenticationSchemes = "BasicAuthentication", Policy = "AdminPolicy")]
     public async Task<IActionResult> DisableEntity(string id)
     {
         _logger.LogInformation("User {User} requested to disable entity {EntityId}", User.Identity?.Name, id);
 
-        if (!IsAdmin())
+        if (!User.IsInRole("Admin"))
         {
             _logger.LogWarning("Unauthorized disable attempt on entity {EntityId} by user {User}", id, User.Identity?.Name);
             return Forbid();
@@ -88,6 +86,4 @@ public class EntityController(
             return StatusCode(500, new { message = "Internal server error" });
         }
     }
-
-    private bool IsAdmin() => User.Identity?.Name == _authOptions.AdminUsername;
 }

@@ -1,11 +1,9 @@
-﻿using CMSApi.Authentication;
-using CMSApi.Controllers;
+﻿using CMSApi.Controllers;
 using CMSApi.Dtos;
 using CMSApi.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Moq;
 using Xunit;
 
@@ -16,26 +14,24 @@ public class CmsEntityControllerTests
     private readonly Mock<ICmsEntityService> _serviceMock;
     private readonly Mock<ILogger<CmsEntityController>> _loggerMock;
     private readonly CmsEntityController _controller;
-    private readonly BasicAuthOptions _authOptions;
 
     public CmsEntityControllerTests()
     {
         _serviceMock = new Mock<ICmsEntityService>();
         _loggerMock = new Mock<ILogger<CmsEntityController>>();
-        _authOptions = new BasicAuthOptions { BasicUsername = "admin_user", BasicPassword = "secret" };
 
         _controller = new CmsEntityController(
             _serviceMock.Object,
-            _loggerMock.Object,
-            Options.Create(_authOptions)
+            _loggerMock.Object
         );
     }
 
-    private void SetUser(string username)
+    private void SetUser(string username, string role)
     {
         var identity = new System.Security.Claims.ClaimsIdentity(
         [
-            new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Name, username)
+            new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Name, username),
+            new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Role, role)
         ], "Basic");
 
         _controller.ControllerContext = new ControllerContext
@@ -47,7 +43,7 @@ public class CmsEntityControllerTests
     [Fact]
     public async Task PostEvents_AsAuthorizedUser_ShouldReturnOk()
     {
-        SetUser("admin_user");
+        SetUser("cms_ingest_user", "CmsIngest");
         var events = new List<CmsEntityDto>
         {
             new() { Id = "1", Type = "publish", Version = 1, Timestamp = DateTime.UtcNow }
@@ -64,7 +60,7 @@ public class CmsEntityControllerTests
     [Fact]
     public async Task PostEvents_AsUnauthorizedUser_ShouldReturnForbid()
     {
-        SetUser("other_user");
+        SetUser("other_user", "ApiUser");
         var events = new List<CmsEntityDto>
         {
             new() { Id = "1", Type = "publish", Version = 1, Timestamp = DateTime.UtcNow }
@@ -79,7 +75,7 @@ public class CmsEntityControllerTests
     [Fact]
     public async Task PostEvents_EmptyList_ShouldReturnBadRequest()
     {
-        SetUser("admin_user");
+        SetUser("cms_ingest_user", "CmsIngest");
 
         var result = await _controller.PostEvents([]);
 
@@ -92,7 +88,7 @@ public class CmsEntityControllerTests
     [Fact]
     public async Task PostEvents_InvalidOperationException_ShouldReturnBadRequest()
     {
-        SetUser("admin_user");
+        SetUser("cms_ingest_user", "CmsIngest");
         var events = new List<CmsEntityDto>
         {
             new() { Id = "1", Type = "publish", Version = 1, Timestamp = DateTime.UtcNow }
@@ -111,7 +107,7 @@ public class CmsEntityControllerTests
     [Fact]
     public async Task PostEvents_Exception_ShouldReturnInternalServerError()
     {
-        SetUser("admin_user");
+        SetUser("cms_ingest_user", "CmsIngest");
         var events = new List<CmsEntityDto>
         {
             new() { Id = "1", Type = "publish", Version = 1, Timestamp = DateTime.UtcNow }
@@ -131,7 +127,7 @@ public class CmsEntityControllerTests
     [Fact]
     public async Task PostEvents_ShouldReturnBadRequest_WhenEventsNull()
     {
-        SetUser("admin_user");
+        SetUser("cms_ingest_user", "CmsIngest");
         var result = await _controller.PostEvents(null!);
         var badRequest = Assert.IsType<BadRequestObjectResult>(result);
         Assert.Contains("No events received", badRequest.Value!.ToString());
@@ -140,7 +136,7 @@ public class CmsEntityControllerTests
     [Fact]
     public async Task PostEvents_ShouldReturnBadRequest_WhenEventsEmpty()
     {
-        SetUser("admin_user");
+        SetUser("cms_ingest_user", "CmsIngest");
         var result = await _controller.PostEvents(Array.Empty<CmsEntityDto>());
         var badRequest = Assert.IsType<BadRequestObjectResult>(result);
         Assert.Contains("No events received", badRequest.Value!.ToString());
@@ -149,7 +145,7 @@ public class CmsEntityControllerTests
     [Fact]
     public async Task PostEvents_ShouldReturnForbid_WhenUserUnauthorized()
     {
-        SetUser("nonadmin_user");
+        SetUser("nonadmin_user", "ApiUser");
         var events = new[] { new CmsEntityDto { Id = "1", Type = "publish", Version = 1, Timestamp = DateTime.UtcNow } };
         var result = await _controller.PostEvents(events);
         Assert.IsType<ForbidResult>(result);
@@ -158,7 +154,7 @@ public class CmsEntityControllerTests
     [Fact]
     public async Task PostEvents_ShouldReturnInternalServerError_OnException()
     {
-        SetUser("admin_user");
+        SetUser("cms_ingest_user", "CmsIngest");
         var events = new[] { new CmsEntityDto { Id = "1", Type = "publish", Version = 1, Timestamp = DateTime.UtcNow } };
         _serviceMock.Setup(s => s.ProcessEventsAsync(events)).ThrowsAsync(new Exception("DB failure"));
 

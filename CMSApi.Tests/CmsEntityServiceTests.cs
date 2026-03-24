@@ -73,9 +73,9 @@ public class CmsEntityServiceTests
             x => x.Log(
                 LogLevel.Warning,
                 It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((v, t) => v.ToString().Contains(text)),
-                It.IsAny<Exception>(),
-                It.IsAny<Func<It.IsAnyType, Exception, string>>()),
+                It.Is<It.IsAnyType>((v, t) => (v != null ? v.ToString()! : string.Empty).Contains(text)),
+                It.IsAny<Exception?>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
             Moq.Times.Exactly(times));
     }
 
@@ -111,15 +111,31 @@ public class CmsEntityServiceTests
     [Fact]
     public async Task ProcessEventsAsync_ShouldDisableEntityOnUnpublish()
     {
-        var entity = new CmsEntity { Id = "1", IsDisabled = false };
-        var evt = MakeEvent("1", "unpublish");
+        var entity = new CmsEntity { Id = "1", IsDisabled = false, LatestVersion = 2 };
+        var evt = MakeEvent("1", "unpublish", 3);
 
         SetupRepositoryMocks(new Dictionary<string, CmsEntity> { { "1", entity } });
 
         await _service.ProcessEventsAsync(new[] { evt });
 
         Assert.True(entity.IsDisabled);
+        Assert.Equal(3, entity.LatestVersion);
         _versionRepo.Verify(v => v.AddVersionAsync(entity, evt), Times.Once);
+    }
+
+    [Fact]
+    public async Task ProcessEventsAsync_ShouldCreateEntity_OnUnpublish_WhenMissing()
+    {
+        var evt = MakeEvent("new-entity", "unpublish", 4);
+        SetupRepositoryMocks();
+
+        await _service.ProcessEventsAsync(new[] { evt });
+
+        _entityRepo.Verify(r => r.AddAsync(It.Is<CmsEntity>(e =>
+            e.Id == "new-entity" &&
+            e.IsDisabled &&
+            e.LatestVersion == 4)), Times.Once);
+        _versionRepo.Verify(v => v.AddVersionAsync(It.Is<CmsEntity>(e => e.Id == "new-entity"), evt), Times.Once);
     }
 
     [Fact]

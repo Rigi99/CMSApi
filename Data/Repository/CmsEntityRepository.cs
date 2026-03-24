@@ -1,20 +1,33 @@
 ﻿using CMSApi.Domain;
+using CMSApi.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 
 namespace CMSApi.Data.Repository;
 
-public class CmsEntityRepository(ApplicationDbContext db, ILogger<CmsEntityRepository> logger) : ICmsEntityRepository
+public class CmsEntityRepository(
+    ApplicationDbContext db,
+    ReadOnlyApplicationDbContext readDb,
+    ILogger<CmsEntityRepository> logger) : ICmsEntityRepository
 {
     private readonly ApplicationDbContext _db = db;
+    private readonly ReadOnlyApplicationDbContext _readDb = readDb;
     private readonly ILogger<CmsEntityRepository> _logger = logger;
 
     public async Task<Dictionary<string, CmsEntity>> GetByIdsAsync(IEnumerable<string> ids)
     {
         try
         {
+            var idList = ids
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Distinct()
+                .ToList();
+
+            if (idList.Count == 0)
+                return [];
+
             return await _db.CmsEntities
-                            .Where(e => ids.Contains(e.Id))
+                            .Where(e => idList.Contains(e.Id))
                             .ToDictionaryAsync(e => e.Id);
         }
         catch (Exception ex)
@@ -28,8 +41,8 @@ public class CmsEntityRepository(ApplicationDbContext db, ILogger<CmsEntityRepos
     {
         try
         {
-            return await _db.CmsEntities
-                            .Include(e => e.Versions)
+            return await _readDb.CmsEntities
+                            .AsNoTracking()
                             .ToDictionaryAsync(e => e.Id);
         }
         catch (Exception ex)

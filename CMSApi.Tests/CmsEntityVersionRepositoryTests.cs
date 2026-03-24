@@ -32,7 +32,7 @@ public class CmsEntityVersionRepositoryTests
         var dto = new CmsEntityDto { Id = "1", Version = 1, Type = "publish", Timestamp = DateTime.UtcNow };
 
         await _repo.AddVersionAsync(entity, dto);
-        await _db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        await _db.SaveChangesAsync(CancellationToken.None);
 
         Assert.Single(entity.Versions);
         var version = entity.Versions.First();
@@ -49,7 +49,7 @@ public class CmsEntityVersionRepositoryTests
         await _repo.AddVersionAsync(entity, dto);
         await _repo.AddVersionAsync(entity, dto); // duplicate
 
-        await _db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        await _db.SaveChangesAsync(CancellationToken.None);
 
         Assert.Single(entity.Versions);
     }
@@ -62,7 +62,7 @@ public class CmsEntityVersionRepositoryTests
 
         await _repo.AddAsync(v2);
         await _repo.AddAsync(v1);
-        await _db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        await _db.SaveChangesAsync(CancellationToken.None);
 
         var result = await _repo.GetByEntityIdAsync("1");
 
@@ -82,9 +82,9 @@ public class CmsEntityVersionRepositoryTests
         };
 
         await _repo.AddAsync(version);
-        await _db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        await _db.SaveChangesAsync(CancellationToken.None);
 
-        var result = await _db.CmsEntityVersions.ToListAsync(cancellationToken: TestContext.Current.CancellationToken);
+        var result = await _db.CmsEntityVersions.ToListAsync(cancellationToken: CancellationToken.None);
 
         Assert.Single(result);
         Assert.Equal("1", result[0].CmsEntityId);
